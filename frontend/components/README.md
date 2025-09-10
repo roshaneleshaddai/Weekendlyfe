@@ -1,0 +1,1 @@
+React components for ActivitiesPanel and ScheduleBoard (drag-and-drop)
