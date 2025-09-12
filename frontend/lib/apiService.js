@@ -112,6 +112,14 @@ class ApiService {
     return this.post("/auth/signup", userData, { auth: false });
   }
 
+  async getUserProfile() {
+    return this.get("/auth/profile");
+  }
+
+  async updateUserProfile(profileData) {
+    return this.put("/auth/profile", profileData);
+  }
+
   // ========== ACTIVITY APIs ==========
 
   async getActivities() {
@@ -130,25 +138,7 @@ class ApiService {
     return this.delete(`/activities/${activityId}`);
   }
 
-  // ========== PLAN APIs (Legacy) ==========
-
-  async getPlan() {
-    return this.get("/plan");
-  }
-
-  async savePlan(planData) {
-    return this.post("/plan", planData);
-  }
-
-  async deletePlanItem(itemId) {
-    return this.delete(`/plan/${itemId}`);
-  }
-
-  async exportPlan() {
-    return this.get("/export");
-  }
-
-  // ========== WEEKEND PLAN APIs (New Enhanced) ==========
+  // ========== WEEKEND PLAN APIs ==========
 
   async getWeekendPlans(page = 1, limit = 10, status = null) {
     const params = new URLSearchParams({ page, limit });
@@ -158,6 +148,10 @@ class ApiService {
 
   async getCurrentWeekendPlan() {
     return this.get("/weekend-plans/current");
+  }
+
+  async getWeekendPlanByDate(date) {
+    return this.get(`/weekend-plans/date/${date}`);
   }
 
   async getWeekendPlan(planId) {
@@ -180,8 +174,9 @@ class ApiService {
     return this.get(`/weekend-plans/${planId}/export`);
   }
 
-  async getUserHistory() {
-    return this.get("/weekend-plans/history");
+  async getUserHistory(date = null) {
+    const params = date ? `?date=${date}` : "";
+    return this.get(`/weekend-plans/history${params}`);
   }
 
   // ========== THEME APIs ==========
@@ -222,6 +217,8 @@ export default apiService;
 export const authAPI = {
   login: (email, password) => apiService.login(email, password),
   signup: (userData) => apiService.signup(userData),
+  getProfile: () => apiService.getUserProfile(),
+  updateProfile: (profileData) => apiService.updateUserProfile(profileData),
 };
 
 export const activityAPI = {
@@ -233,6 +230,7 @@ export const activityAPI = {
 
 export const planAPI = {
   getCurrent: () => apiService.getCurrentWeekendPlan(),
+  getByDate: (date) => apiService.getWeekendPlanByDate(date),
   getAll: (page, limit, status) =>
     apiService.getWeekendPlans(page, limit, status),
   get: (id) => apiService.getWeekendPlan(id),
@@ -240,16 +238,54 @@ export const planAPI = {
   updateStatus: (id, status) => apiService.updatePlanStatus(id, status),
   complete: (id, data) => apiService.completeWeekendPlan(id, data),
   export: (id) => apiService.exportWeekendPlan(id),
-  getHistory: () => apiService.getUserHistory(),
-
-  // Legacy plan APIs
-  getLegacy: () => apiService.getPlan(),
-  saveLegacy: (data) => apiService.savePlan(data),
-  deleteLegacyItem: (id) => apiService.deletePlanItem(id),
-  exportLegacy: () => apiService.exportPlan(),
+  getHistory: (date) => apiService.getUserHistory(date),
 };
 
 export const themeAPI = {
   getThemes: () => apiService.getThemes(),
   getVibes: () => apiService.getVibes(),
+};
+
+export const externalAPI = {
+  // Movies
+  getTrendingMovies: (page = 1) =>
+    apiService.get(`/external/movies/trending?page=${page}`, { auth: false }),
+  getNowPlayingMovies: (page = 1, region = "US") =>
+    apiService.get(
+      `/external/movies/now-playing?page=${page}&region=${region}`,
+      { auth: false }
+    ),
+  getUpcomingMovies: (page = 1, region = "US") =>
+    apiService.get(`/external/movies/upcoming?page=${page}&region=${region}`, {
+      auth: false,
+    }),
+  getMovieDetails: (movieId) =>
+    apiService.get(`/external/movies/${movieId}`, { auth: false }),
+
+  // Places
+  getPopularPlaces: (
+    lat,
+    lng,
+    radius = 10000,
+    type = "tourist_attraction",
+    pageToken = null
+  ) => {
+    const params = new URLSearchParams({ lat, lng, radius, type });
+    if (pageToken) params.append("page_token", pageToken);
+    return apiService.get(`/external/places/popular?${params}`, {
+      auth: false,
+    });
+  },
+  getTrendingPlaces: (
+    lat,
+    lng,
+    radius = 10000,
+    categories = "tourism,entertainment,food",
+    limit = 20
+  ) => {
+    const params = new URLSearchParams({ lat, lng, radius, categories, limit });
+    return apiService.get(`/external/places/trending?${params}`, {
+      auth: false,
+    });
+  },
 };

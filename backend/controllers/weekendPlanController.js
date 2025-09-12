@@ -129,14 +129,18 @@ const createOrUpdateWeekendPlan = async (req, res) => {
     const processActivities = (activities, day) => {
       return activities.map((item, index) => {
         const startTime = item.startTime || "09:00";
-        const activity = item.activity;
-        const duration = activity?.durationMin || 60;
+        const duration =
+          item.activity?.durationMin ||
+          item.external_activity?.durationMin ||
+          60;
         const startMinutes = timeToMinutes(startTime);
         const endMinutes = startMinutes + duration;
         const endTime = minutesToTime(endMinutes);
 
+        // Return the item as-is since frontend now sends correct structure
         return {
-          activity: activity._id || activity,
+          activity: item.activity,
+          external_activity: item.external_activity,
           order: item.order || index,
           startTime,
           endTime,

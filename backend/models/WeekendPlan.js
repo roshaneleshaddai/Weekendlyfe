@@ -7,11 +7,22 @@ const WeekendPlanSchema = new mongoose.Schema({
   title: String,
   description: String,
   weekend_date: { type: Date, required: true }, // The Saturday of the weekend
+  weekend_date_range: {
+    start_date: { type: Date, required: true }, // Saturday
+    end_date: { type: Date, required: true }, // Sunday
+  },
 
   // Plan Status
   status: {
     type: String,
-    enum: ["draft", "active", "completed", "cancelled"],
+    enum: [
+      "draft",
+      "planning",
+      "active",
+      "in_progress",
+      "completed",
+      "cancelled",
+    ],
     default: "draft",
   },
 
@@ -21,7 +32,33 @@ const WeekendPlanSchema = new mongoose.Schema({
       activity: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Activity",
-        required: true,
+        required: false, // Made optional to allow external activities
+      },
+      // External activity data (when activity is not a database reference)
+      external_activity: {
+        id: String,
+        title: String,
+        description: String,
+        category: String,
+        subcategory: String,
+        durationMin: Number,
+        icon: String,
+        color: String,
+        images: [String],
+        rating: Number,
+        source: String, // 'tmdb', 'google_places', etc.
+        external_id: String,
+        location: String,
+        address: String,
+        coordinates: {
+          lat: Number,
+          lng: Number,
+        },
+        release_date: String, // For movies
+        poster_path: String, // For movies
+        backdrop_path: String, // For movies
+        opening_hours: Boolean, // For places
+        types: [String], // For places
       },
       order: { type: Number, default: 0 },
       startTime: String,
@@ -43,7 +80,33 @@ const WeekendPlanSchema = new mongoose.Schema({
       activity: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Activity",
-        required: true,
+        required: false, // Made optional to allow external activities
+      },
+      // External activity data (when activity is not a database reference)
+      external_activity: {
+        id: String,
+        title: String,
+        description: String,
+        category: String,
+        subcategory: String,
+        durationMin: Number,
+        icon: String,
+        color: String,
+        images: [String],
+        rating: Number,
+        source: String, // 'tmdb', 'google_places', etc.
+        external_id: String,
+        location: String,
+        address: String,
+        coordinates: {
+          lat: Number,
+          lng: Number,
+        },
+        release_date: String, // For movies
+        poster_path: String, // For movies
+        backdrop_path: String, // For movies
+        opening_hours: Boolean, // For places
+        types: [String], // For places
       },
       order: { type: Number, default: 0 },
       startTime: String,
@@ -105,5 +168,30 @@ WeekendPlanSchema.methods.getTotalDuration = function () {
     return total + (planActivity.activity?.durationMin || 0);
   }, 0);
 };
+
+// Indexes for better query performance
+WeekendPlanSchema.index({
+  user: 1,
+  "weekend_date_range.start_date": 1,
+  "weekend_date_range.end_date": 1,
+});
+WeekendPlanSchema.index({ user: 1, status: 1 });
+WeekendPlanSchema.index({
+  "weekend_date_range.start_date": 1,
+  "weekend_date_range.end_date": 1,
+});
+
+// Unique compound index to prevent duplicate weekend plans for the same user and date range
+WeekendPlanSchema.index(
+  {
+    user: 1,
+    "weekend_date_range.start_date": 1,
+    "weekend_date_range.end_date": 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: { status: { $in: ["draft", "planning"] } },
+  }
+);
 
 module.exports = mongoose.model("WeekendPlan", WeekendPlanSchema);

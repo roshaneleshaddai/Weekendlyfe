@@ -5,6 +5,7 @@ const {
   getUserWeekendPlans,
   getWeekendPlan,
   getCurrentWeekendPlan,
+  getWeekendPlanByDate,
   createOrUpdateWeekendPlan,
   updatePlanStatus,
   completeWeekendPlan,
@@ -17,6 +18,9 @@ router.get("/", authRequired, getUserWeekendPlans);
 
 // Get current weekend plan (this weekend)
 router.get("/current", authRequired, getCurrentWeekendPlan);
+
+// Get weekend plan by specific date
+router.get("/date/:date", authRequired, getWeekendPlanByDate);
 
 // Get user's activity history and statistics
 router.get("/history", authRequired, getUserHistory);

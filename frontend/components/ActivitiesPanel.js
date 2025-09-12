@@ -445,7 +445,7 @@ export default function ActivitiesPanel({
   }, [activities, searchTerm, selectedCategory, selectedTheme, sortBy]);
 
   return (
-    <div className="bg-zen-white rounded-2xl shadow-xl border border-zen-light-gray p-6">
+    <div className="bg-zen-white rounded-b-2xl shadow-xl border border-zen-light-gray border-t-0 p-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-zen-black">Activities</h2>
         <div className="flex items-center gap-4">

@@ -107,7 +107,74 @@ const login = async (req, res) => {
   }
 };
 
+// Get user profile
+const getUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select("-passwordHash");
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error("Get user profile error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Update user profile
+const updateUserProfile = async (req, res) => {
+  try {
+    const {
+      name,
+      phone,
+      location,
+      preferred_activities,
+      budget_range,
+      companions,
+      preferred_vibe,
+      dietary_preferences,
+      bio,
+      notifications,
+    } = req.body;
+
+    const updateData = {};
+
+    // Only update fields that are provided
+    if (name !== undefined) updateData.name = name;
+    if (phone !== undefined) updateData.phone = phone;
+    if (location !== undefined) updateData.location = location;
+    if (preferred_activities !== undefined)
+      updateData.preferred_activities = preferred_activities;
+    if (budget_range !== undefined) updateData.budget_range = budget_range;
+    if (companions !== undefined) updateData.companions = companions;
+    if (preferred_vibe !== undefined)
+      updateData.preferred_vibe = preferred_vibe;
+    if (dietary_preferences !== undefined)
+      updateData.dietary_preferences = dietary_preferences;
+    if (bio !== undefined) updateData.bio = bio;
+    if (notifications !== undefined) updateData.notifications = notifications;
+
+    const user = await User.findByIdAndUpdate(req.userId, updateData, {
+      new: true,
+      runValidators: true,
+    }).select("-passwordHash");
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error("Update user profile error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   signup,
   login,
+  getUserProfile,
+  updateUserProfile,
 };

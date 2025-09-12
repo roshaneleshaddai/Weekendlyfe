@@ -7,36 +7,12 @@ import { useAuth } from "../lib/AuthContext";
 import { formatDate } from "../lib/dateUtils";
 import { planAPI } from "../lib/apiService";
 
-const VibeSelector = ({ selectedVibe, onVibeChange, vibes }) => {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {vibes.map((vibe) => (
-        <button
-          key={vibe.id}
-          onClick={() => onVibeChange(vibe.id)}
-          className={`
-            px-3 py-1 rounded-full text-xs font-medium transition-all duration-200
-            ${
-              selectedVibe === vibe.id
-                ? "bg-zen-lime text-zen-black shadow-md"
-                : "bg-zen-light-gray text-zen-black hover:bg-zen-black hover:text-zen-lime"
-            }
-          `}
-        >
-          {vibe.emoji} {vibe.name}
-        </button>
-      ))}
-    </div>
-  );
-};
-
 const PlanItemCard = ({
   item,
   onRemove,
   onTimeChange,
   onVibeChange,
   onNotesChange,
-  vibes,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [notes, setNotes] = useState(item.notes || "");
@@ -62,12 +38,23 @@ const PlanItemCard = ({
       <div className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center space-x-3">
-            <span className="text-2xl">{item.activity.icon}</span>
+            <span className="text-2xl">
+              {item.activity?.icon || item.external_activity?.icon}
+            </span>
             <div>
               <h4 className="font-semibold text-zen-black">
-                {item.activity.title}
+                {item.activity?.title || item.external_activity?.title}
               </h4>
-              <p className="text-sm text-zen-black">{item.activity.category}</p>
+              <p className="text-sm text-zen-black">
+                {item.activity?.category || item.external_activity?.category}
+                {item.external_activity?.source && (
+                  <span className="ml-2 text-xs bg-zen-lime text-zen-black px-1 py-0.5 rounded">
+                    {item.external_activity.source === "tmdb"
+                      ? "Movie"
+                      : "Place"}
+                  </span>
+                )}
+              </p>
             </div>
           </div>
           <button
@@ -92,20 +79,11 @@ const PlanItemCard = ({
               - {item.endTime || "10:00"}
             </span>
             <span className="text-xs bg-zen-light-gray text-zen-black px-2 py-1 rounded">
-              {item.activity.durationMin}m
+              {item.activity?.durationMin ||
+                item.external_activity?.durationMin ||
+                60}
+              m
             </span>
-          </div>
-
-          {/* Vibe Selection */}
-          <div>
-            <label className="text-sm font-medium text-zen-black block mb-2">
-              Vibe:
-            </label>
-            <VibeSelector
-              selectedVibe={item.vibe}
-              onVibeChange={(vibe) => onVibeChange(item, vibe)}
-              vibes={vibes}
-            />
           </div>
 
           {/* Notes */}
@@ -118,7 +96,7 @@ const PlanItemCard = ({
               onChange={handleNotesChange}
               placeholder="Add notes about this activity..."
               className="w-full px-3 py-2 border border-zen-light-gray rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zen-lime resize-none"
-              rows="2"
+              rows="1"
             />
           </div>
         </div>
@@ -127,10 +105,15 @@ const PlanItemCard = ({
         <div className="mt-3 flex items-center justify-between">
           <div
             className="w-6 h-6 rounded-full border-2"
-            style={{ backgroundColor: item.activity.color }}
+            style={{
+              backgroundColor:
+                item.activity?.color ||
+                item.external_activity?.color ||
+                "#FDE68A",
+            }}
           ></div>
           <div className="text-xs text-zen-black">
-            {item.activity.description}
+            {item.activity?.description || item.external_activity?.description}
           </div>
         </div>
       </div>
@@ -145,7 +128,7 @@ const DayColumn = ({
   onTimeChange,
   onVibeChange,
   onNotesChange,
-  vibes,
+
   onDragEnd,
 }) => {
   return (
@@ -191,7 +174,6 @@ const DayColumn = ({
                         onTimeChange={onTimeChange}
                         onVibeChange={onVibeChange}
                         onNotesChange={onNotesChange}
-                        vibes={vibes}
                       />
                     </div>
                   )}
@@ -219,18 +201,90 @@ export default function ScheduleBoard({
   setPlan,
   onSave,
   themes,
-  vibes,
   selectedTheme,
   onThemeChange,
   onDragEnd,
   selectedDate,
   weekendPlan,
+  onDateChange,
+  onPlanLoad,
 }) {
   const { isAuthenticated } = useAuth();
   const [showTimeSlots, setShowTimeSlots] = useState(false);
   const [selectedDay, setSelectedDay] = useState("saturday");
   const [selectedTime, setSelectedTime] = useState(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isLoadingPlan, setIsLoadingPlan] = useState(false);
+  const [localSelectedDate, setLocalSelectedDate] = useState(selectedDate);
+
+  // Check if the selected date is in the past
+  const isPastDate = (date) => {
+    const today = new Date();
+    const selected = new Date(date);
+    today.setHours(0, 0, 0, 0);
+    selected.setHours(0, 0, 0, 0);
+    return selected < today;
+  };
+
+  // Handle date change
+  const handleDateChange = async (newDate) => {
+    setLocalSelectedDate(newDate);
+    if (onDateChange) {
+      onDateChange(newDate);
+    }
+
+    // Load plan for the new date
+    if (onPlanLoad) {
+      setIsLoadingPlan(true);
+      try {
+        await onPlanLoad(newDate);
+      } catch (error) {
+        console.error("Error loading plan:", error);
+      } finally {
+        setIsLoadingPlan(false);
+      }
+    }
+  };
+
+  // Auto-complete past dates
+  useEffect(() => {
+    if (
+      weekendPlan &&
+      isPastDate(localSelectedDate) &&
+      weekendPlan.status !== "completed"
+    ) {
+      handleStatusChange("completed");
+    }
+  }, [localSelectedDate, weekendPlan]);
+
+  // Add new activity to the plan
+  const addActivity = (activity, day, startTime = "09:00") => {
+    const newItem = {
+      _id: `temp_${Date.now()}`,
+      activity: activity,
+      day: day,
+      startTime: startTime,
+      endTime: calculateEndTime(startTime, activity.durationMin),
+      vibe: "relaxed",
+      notes: "",
+    };
+
+    setPlan((prev) => ({
+      ...prev,
+      [day]: [...(prev[day] || []), newItem],
+    }));
+  };
+
+  // Calculate end time based on start time and duration
+  const calculateEndTime = (startTime, durationMin) => {
+    const [hours, minutes] = startTime.split(":").map(Number);
+    const totalMinutes = hours * 60 + minutes + durationMin;
+    const endHours = Math.floor(totalMinutes / 60);
+    const endMinutes = totalMinutes % 60;
+    return `${endHours.toString().padStart(2, "0")}:${endMinutes
+      .toString()
+      .padStart(2, "0")}`;
+  };
 
   const removeItem = (item) => {
     setPlan((prev) => ({
@@ -268,7 +322,11 @@ export default function ScheduleBoard({
 
   const calculateTotalDuration = (day) => {
     return (plan[day] || []).reduce(
-      (total, item) => total + (item.activity?.durationMin || 0),
+      (total, item) =>
+        total +
+        (item.activity?.durationMin ||
+          item.external_activity?.durationMin ||
+          0),
       0
     );
   };
@@ -317,13 +375,38 @@ export default function ScheduleBoard({
               Your Weekend Plan
             </h2>
             <p className="text-zen-black">
-              {selectedDate
-                ? `Plan for ${formatDate(selectedDate)} Weekend`
+              {localSelectedDate
+                ? `Plan for ${formatDate(localSelectedDate)} Weekend`
                 : "Plan your perfect weekend with activities and themes"}
             </p>
+
+            {/* Date Selection */}
+            <div className="mt-3 flex items-center space-x-3">
+              <label className="text-sm font-medium text-zen-black">
+                Select Date:
+              </label>
+              <input
+                type="date"
+                value={localSelectedDate}
+                onChange={(e) => handleDateChange(e.target.value)}
+                disabled={isLoadingPlan}
+                className="px-3 py-2 border border-zen-light-gray rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zen-lime disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              {isLoadingPlan && (
+                <div className="flex items-center space-x-2 text-sm text-zen-black">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-zen-lime"></div>
+                  <span>Loading...</span>
+                </div>
+              )}
+              {isPastDate(localSelectedDate) && (
+                <span className="text-xs bg-zen-lime text-zen-black px-2 py-1 rounded">
+                  Past Date - Auto-completed
+                </span>
+              )}
+            </div>
             {weekendPlan && (
               <div className="mt-2 flex items-center gap-3">
-                <div className="text-sm text-zen-black">
+                {/* <div className="text-sm text-zen-black">
                   Status:{" "}
                   <span
                     className={`px-2 py-1 rounded text-xs ${getStatusColor(
@@ -332,7 +415,7 @@ export default function ScheduleBoard({
                   >
                     {weekendPlan.status}
                   </span>
-                </div>
+                </div> */}
                 {isAuthenticated && (
                   <select
                     value={weekendPlan.status}
@@ -433,7 +516,6 @@ export default function ScheduleBoard({
           onTimeChange={handleTimeChange}
           onVibeChange={handleVibeChange}
           onNotesChange={handleNotesChange}
-          vibes={vibes}
           onDragEnd={onDragEnd}
         />
         <DayColumn
@@ -443,7 +525,6 @@ export default function ScheduleBoard({
           onTimeChange={handleTimeChange}
           onVibeChange={handleVibeChange}
           onNotesChange={handleNotesChange}
-          vibes={vibes}
           onDragEnd={onDragEnd}
         />
       </div>

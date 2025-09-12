@@ -21,6 +21,14 @@ export default function AuthNav() {
           Welcome back,{" "}
           <span className="font-medium text-slate-800">{auth?.user?.name}</span>
         </span>
+        <motion.a
+          href="/profile"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="px-4 py-2 bg-zen-lime text-zen-black rounded-lg hover:bg-zen-lime/80 transition-colors text-sm font-medium"
+        >
+          👤 Profile
+        </motion.a>
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}

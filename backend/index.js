@@ -7,9 +7,9 @@ const cookieParser = require("cookie-parser");
 // Import routes
 const authRoutes = require("./routes/auth");
 const activityRoutes = require("./routes/activities");
-const planRoutes = require("./routes/plans");
 const themeRoutes = require("./routes/themes");
 const weekendPlanRoutes = require("./routes/weekendPlans");
+const externalRoutes = require("./routes/external");
 
 const app = express();
 
@@ -29,9 +29,9 @@ mongoose
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/activities", activityRoutes);
-app.use("/api/plan", planRoutes);
 app.use("/api/themes", themeRoutes);
 app.use("/api/weekend-plans", weekendPlanRoutes);
+app.use("/api/external", externalRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

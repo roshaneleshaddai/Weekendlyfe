@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { DragDropContext } from "react-beautiful-dnd";
 import ActivitiesPanel from "../components/ActivitiesPanel";
 import ScheduleBoard from "../components/ScheduleBoard";
+import MoviesPanel from "../components/MoviesPanel";
+import PlacesPanel from "../components/PlacesPanel";
 import { useAuth } from "../lib/AuthContext";
 import apiService, { activityAPI, planAPI, themeAPI } from "../lib/apiService";
 import { formatDate, formatDateShort, getWeekendDates } from "../lib/dateUtils";
@@ -66,7 +68,6 @@ export default function Home() {
     saturday.setDate(now.getDate() + (6 - now.getDay())); // Next Saturday
     return saturday.toISOString().split("T")[0];
   });
-  const [showHistory, setShowHistory] = useState(false);
 
   // Fetch data using API service
   const { data: activities, error: activitiesError } = useSWR(
@@ -76,63 +77,198 @@ export default function Home() {
 
   const { data: themes } = useSWR("themes", () => themeAPI.getThemes());
 
-  const { data: vibes } = useSWR("vibes", () => themeAPI.getVibes());
+  // const { data: vibes } = useSWR("vibes", () => themeAPI.getVibes());
 
-  // Fetch current weekend plan based on selected date
+  // Fetch weekend plan based on selected date
   const {
     data: currentWeekendPlan,
     mutate: mutateCurrentPlan,
     error: planError,
   } = useSWR(
-    token && selectedDate ? `current-weekend-plan-${selectedDate}` : null,
-    () => planAPI.getCurrent()
-  );
-
-  // Fetch user history
-  const { data: userHistory } = useSWR(
-    token && showHistory ? "user-history" : null,
-    () => planAPI.getHistory()
-  );
-
-  // Legacy plan support for backward compatibility
-  const { data: legacyPlanItems, mutate: mutateLegacyPlan } = useSWR(
-    token ? "legacy-plan" : null,
-    () => planAPI.getLegacy()
+    token && selectedDate ? `weekend-plan-${selectedDate}` : null,
+    () => planAPI.getByDate(selectedDate),
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: true,
+    }
   );
 
   const [localPlan, setLocalPlan] = useState({ saturday: [], sunday: [] });
   const [selectedTheme, setSelectedTheme] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [notification, setNotification] = useState(null);
+  const [activeContentTab, setActiveContentTab] = useState("activities");
+  const [userLocation, setUserLocation] = useState(null);
+
+  // Get user's location for places
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        (error) => {
+          console.log("Geolocation error:", error);
+          // Use default location (Delhi) if geolocation fails
+          setUserLocation({ lat: 28.6139, lng: 77.209 });
+        }
+      );
+    } else {
+      // Use default location if geolocation is not supported
+      setUserLocation({ lat: 28.6139, lng: 77.209 });
+    }
+  }, []);
+
+  // Handle date change
+  const handleDateChange = (newDate) => {
+    setSelectedDate(newDate);
+  };
+
+  // Handle plan loading for specific date
+  const handlePlanLoad = async (date) => {
+    try {
+      const plan = await planAPI.getByDate(date);
+      if (plan) {
+        // Convert weekend plan format to local plan format
+        const convertedPlan = {
+          saturday: (plan.saturday_activities || [])
+            .sort((a, b) => (a.order || 0) - (b.order || 0))
+            .map((item) => {
+              // Handle external activities
+              if (item.external_activity) {
+                return {
+                  ...item,
+                  day: "saturday",
+                  activity: {
+                    _id: item.external_activity.id,
+                    ...item.external_activity, // Flatten external activity data
+                  },
+                };
+              }
+              // Handle regular activities
+              return {
+                ...item,
+                day: "saturday",
+                activity: item.activity
+                  ? {
+                      _id: item.activity._id,
+                      ...item.activity, // Spread all activity fields
+                    }
+                  : { _id: null },
+              };
+            }),
+          sunday: (plan.sunday_activities || [])
+            .sort((a, b) => (a.order || 0) - (b.order || 0))
+            .map((item) => {
+              // Handle external activities
+              if (item.external_activity) {
+                return {
+                  ...item,
+                  day: "sunday",
+                  activity: {
+                    _id: item.external_activity.id,
+                    ...item.external_activity, // Flatten external activity data
+                  },
+                };
+              }
+              // Handle regular activities
+              return {
+                ...item,
+                day: "sunday",
+                activity: item.activity
+                  ? {
+                      _id: item.activity._id,
+                      ...item.activity, // Spread all activity fields
+                    }
+                  : { _id: null },
+              };
+            }),
+        };
+        setLocalPlan(convertedPlan);
+        console.log("Plan loaded successfully:", convertedPlan);
+      } else {
+        console.log("No plan found for date:", date);
+        setLocalPlan({ saturday: [], sunday: [] });
+      }
+    } catch (error) {
+      console.error("Error loading plan:", error);
+      setNotification({
+        type: "error",
+        message: "Failed to load plan for selected date",
+      });
+    }
+  };
 
   useEffect(() => {
-    // Priority: Use current weekend plan if available, otherwise fall back to legacy
+    // Load weekend plan data
     if (currentWeekendPlan) {
-      const saturday = currentWeekendPlan.saturday_activities
-        .sort((a, b) => a.order - b.order)
-        .map((item) => ({
-          ...item,
-          day: "saturday",
-          activity: item.activity,
-        }));
-      const sunday = currentWeekendPlan.sunday_activities
-        .sort((a, b) => a.order - b.order)
-        .map((item) => ({
-          ...item,
-          day: "sunday",
-          activity: item.activity,
-        }));
-      setLocalPlan({ saturday, sunday });
-    } else if (legacyPlanItems) {
-      const saturday = legacyPlanItems
-        .filter((p) => p.day === "saturday")
-        .sort((a, b) => a.order - b.order);
-      const sunday = legacyPlanItems
-        .filter((p) => p.day === "sunday")
-        .sort((a, b) => a.order - b.order);
+      const saturday = (currentWeekendPlan.saturday_activities || [])
+        .sort((a, b) => (a.order || 0) - (b.order || 0))
+        .map((item) => {
+          // Handle external activities
+          if (item.external_activity) {
+            return {
+              ...item,
+              day: "saturday",
+              activity: {
+                _id: item.external_activity.id,
+                ...item.external_activity, // Flatten external activity data
+              },
+            };
+          }
+          // Handle regular activities
+          return {
+            ...item,
+            day: "saturday",
+            activity: item.activity
+              ? {
+                  _id: item.activity._id,
+                  ...item.activity, // Spread all activity fields
+                }
+              : { _id: null },
+          };
+        });
+
+      const sunday = (currentWeekendPlan.sunday_activities || [])
+        .sort((a, b) => (a.order || 0) - (b.order || 0))
+        .map((item) => {
+          // Handle external activities
+          if (item.external_activity) {
+            return {
+              ...item,
+              day: "sunday",
+              activity: {
+                _id: item.external_activity.id,
+                ...item.external_activity, // Flatten external activity data
+              },
+            };
+          }
+          // Handle regular activities
+          return {
+            ...item,
+            day: "sunday",
+            activity: item.activity
+              ? {
+                  _id: item.activity._id,
+                  ...item.activity, // Spread all activity fields
+                }
+              : { _id: null },
+          };
+        });
+
       setLocalPlan({ saturday, sunday });
     }
-  }, [currentWeekendPlan, legacyPlanItems]);
+  }, [currentWeekendPlan]);
+
+  // Load plan when date changes
+  useEffect(() => {
+    if (selectedDate && isAuthenticated) {
+      handlePlanLoad(selectedDate);
+    }
+  }, [selectedDate, isAuthenticated]);
 
   const showNotification = (message, type = "success") => {
     setNotification({ message, type });
@@ -147,60 +283,146 @@ export default function Home() {
 
     setIsLoading(true);
     try {
-      // Use new weekend plan API if we have a selected date
-      if (selectedDate) {
-        const saturdayActivities = plan.saturday.map((item, idx) => ({
-          activity: item.activity._id || item.activity,
-          order: idx,
-          startTime: item.startTime || "09:00",
-          endTime: item.endTime || "",
-          vibe: item.vibe || "",
-          notes: item.notes || "",
-          completed: item.completed || false,
-          rating: item.rating || null,
-          review: item.review || "",
-        }));
+      const saturdayActivities = plan.saturday.map((item, idx) => {
+        const activity = item.activity;
+        const isExternalActivity = activity?.source || activity?.external_id;
 
-        const sundayActivities = plan.sunday.map((item, idx) => ({
-          activity: item.activity._id || item.activity,
-          order: idx,
-          startTime: item.startTime || "09:00",
-          endTime: item.endTime || "",
-          vibe: item.vibe || "",
-          notes: item.notes || "",
-          completed: item.completed || false,
-          rating: item.rating || null,
-          review: item.review || "",
-        }));
-
-        const weekendPlanData = {
-          weekend_date: selectedDate,
-          status: "planning",
-          saturday_activities: saturdayActivities,
-          sunday_activities: sundayActivities,
-          tags: selectedTheme ? [selectedTheme] : [],
-        };
-
-        await planAPI.save(weekendPlanData);
-        mutateCurrentPlan();
-      } else {
-        // Fallback to legacy API
-        const payload = [...plan.saturday, ...plan.sunday].map((it, idx) => {
+        if (isExternalActivity) {
+          // Send external activity data
           return {
-            activity: it.activity._id || it.activity,
-            day: it.day,
+            activity: null, // No database reference
+            external_activity: {
+              id: activity.id || activity._id,
+              title: activity.title,
+              description: activity.description,
+              category: activity.category,
+              subcategory: activity.subcategory,
+              durationMin: activity.durationMin,
+              icon: activity.icon,
+              color: activity.color,
+              images: activity.images || [],
+              rating: activity.rating,
+              source: activity.source,
+              external_id: activity.external_id,
+              location: activity.location,
+              address: activity.address,
+              coordinates: activity.coordinates,
+              release_date: activity.release_date,
+              poster_path: activity.poster_path,
+              backdrop_path: activity.backdrop_path,
+              opening_hours: activity.opening_hours,
+              types: activity.types,
+            },
             order: idx,
-            startTime: it.startTime || "09:00",
-            endTime: it.endTime || "",
-            vibe: it.vibe || "",
-            theme: selectedTheme || "",
-            notes: it.notes || "",
+            startTime: item.startTime || "09:00",
+            endTime:
+              item.endTime ||
+              calculateEndTime(
+                item.startTime || "09:00",
+                activity?.durationMin || 60
+              ),
+            vibe: item.vibe || "",
+            notes: item.notes || "",
+            completed: item.completed || false,
+            rating: item.rating || null,
+            review: item.review || "",
           };
-        });
+        } else {
+          // Send regular database activity
+          return {
+            activity: activity._id || activity,
+            order: idx,
+            startTime: item.startTime || "09:00",
+            endTime:
+              item.endTime ||
+              calculateEndTime(
+                item.startTime || "09:00",
+                activity?.durationMin || 60
+              ),
+            vibe: item.vibe || "",
+            notes: item.notes || "",
+            completed: item.completed || false,
+            rating: item.rating || null,
+            review: item.review || "",
+          };
+        }
+      });
 
-        await planAPI.saveLegacy(payload);
-        mutateLegacyPlan();
-      }
+      const sundayActivities = plan.sunday.map((item, idx) => {
+        const activity = item.activity;
+        const isExternalActivity = activity?.source || activity?.external_id;
+
+        if (isExternalActivity) {
+          // Send external activity data
+          return {
+            activity: null, // No database reference
+            external_activity: {
+              id: activity.id || activity._id,
+              title: activity.title,
+              description: activity.description,
+              category: activity.category,
+              subcategory: activity.subcategory,
+              durationMin: activity.durationMin,
+              icon: activity.icon,
+              color: activity.color,
+              images: activity.images || [],
+              rating: activity.rating,
+              source: activity.source,
+              external_id: activity.external_id,
+              location: activity.location,
+              address: activity.address,
+              coordinates: activity.coordinates,
+              release_date: activity.release_date,
+              poster_path: activity.poster_path,
+              backdrop_path: activity.backdrop_path,
+              opening_hours: activity.opening_hours,
+              types: activity.types,
+            },
+            order: idx,
+            startTime: item.startTime || "09:00",
+            endTime:
+              item.endTime ||
+              calculateEndTime(
+                item.startTime || "09:00",
+                activity?.durationMin || 60
+              ),
+            vibe: item.vibe || "",
+            notes: item.notes || "",
+            completed: item.completed || false,
+            rating: item.rating || null,
+            review: item.review || "",
+          };
+        } else {
+          // Send regular database activity
+          return {
+            activity: activity._id || activity,
+            order: idx,
+            startTime: item.startTime || "09:00",
+            endTime:
+              item.endTime ||
+              calculateEndTime(
+                item.startTime || "09:00",
+                activity?.durationMin || 60
+              ),
+            vibe: item.vibe || "",
+            notes: item.notes || "",
+            completed: item.completed || false,
+            rating: item.rating || null,
+            review: item.review || "",
+          };
+        }
+      });
+
+      const weekendPlanData = {
+        weekend_date: selectedDate,
+        status: currentWeekendPlan?.status || "planning",
+        saturday_activities: saturdayActivities,
+        sunday_activities: sundayActivities,
+        tags: selectedTheme ? [selectedTheme] : [],
+      };
+
+      await planAPI.save(weekendPlanData);
+      mutateCurrentPlan();
 
       showNotification("Plan saved successfully!", "success");
     } catch (error) {
@@ -221,12 +443,12 @@ export default function Home() {
     }
 
     try {
-      let svg;
-      if (currentWeekendPlan) {
-        svg = await planAPI.export(currentWeekendPlan._id);
-      } else {
-        svg = await planAPI.exportLegacy();
+      if (!currentWeekendPlan) {
+        showNotification("No plan to export", "error");
+        return;
       }
+
+      const svg = await planAPI.export(currentWeekendPlan._id);
 
       const blob = new Blob([svg], { type: "image/svg+xml" });
       const url = URL.createObjectURL(blob);
@@ -255,14 +477,22 @@ export default function Home() {
     const endTime =
       activity.endTime || calculateEndTime(startTime, activity.durationMin);
 
+    // Check if this is an external activity (has source field)
+    const isExternalActivity = activity.source || activity.external_id;
+
     const newItem = {
-      activity,
+      activity: isExternalActivity
+        ? activity
+        : {
+            _id: activity._id,
+            ...activity, // Spread all activity fields for normal activities
+          },
       day,
       order: localPlan[day].length,
       startTime,
       endTime,
-      vibe: "",
-      notes: "",
+      vibe: activity.vibe || "",
+      notes: activity.notes || "",
     };
 
     setLocalPlan((prev) => ({
@@ -394,93 +624,6 @@ export default function Home() {
   //   );
   // }
 
-  // History Component
-  const HistoryPanel = () => (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="bg-zen-white rounded-2xl shadow-xl border border-zen-light-gray p-6 mb-6"
-    >
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-xl font-bold text-zen-black">
-          Your Weekend History
-        </h3>
-        <button
-          onClick={() => setShowHistory(false)}
-          className="btn btn-icon btn-secondary"
-        >
-          ✕
-        </button>
-      </div>
-
-      {userHistory ? (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="bg-zen-light-gray rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-zen-black">
-                {userHistory.stats?.total_plans || 0}
-              </div>
-              <div className="text-sm text-zen-black">Total Plans</div>
-            </div>
-            <div className="bg-zen-lime rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-zen-black">
-                {userHistory.stats?.completed_plans || 0}
-              </div>
-              <div className="text-sm text-zen-black">Completed</div>
-            </div>
-            <div className="bg-zen-white border border-zen-light-gray rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-zen-black">
-                {userHistory.stats?.average_rating?.toFixed(1) || "N/A"}
-              </div>
-              <div className="text-sm text-zen-black">Avg Rating</div>
-            </div>
-          </div>
-
-          <div className="max-h-96 overflow-y-auto space-y-3">
-            {userHistory.plans?.map((plan) => (
-              <div
-                key={plan._id}
-                className="border border-zen-light-gray rounded-lg p-4"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="font-medium text-zen-black">
-                    {formatDate(plan.weekend_date)}
-                  </div>
-                  <div
-                    className={`px-2 py-1 rounded text-xs ${
-                      plan.status === "completed"
-                        ? "bg-zen-lime text-zen-black"
-                        : plan.status === "in_progress"
-                        ? "bg-zen-black text-zen-white"
-                        : "bg-zen-light-gray text-zen-black"
-                    }`}
-                  >
-                    {plan.status}
-                  </div>
-                </div>
-                <div className="text-sm text-zen-black">
-                  {plan.saturday_activities?.length || 0} Saturday +{" "}
-                  {plan.sunday_activities?.length || 0} Sunday activities
-                </div>
-                {plan.overall_rating && (
-                  <div className="text-sm text-zen-black mt-1">
-                    Rating: {"⭐".repeat(plan.overall_rating)}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="text-center py-8 text-zen-black">
-          <div className="text-4xl mb-2">📅</div>
-          <p>Loading your weekend history...</p>
-        </div>
-      )}
-    </motion.div>
-  );
-
   return (
     <div className="space-y-6">
       {/* Hero Section */}
@@ -536,17 +679,76 @@ export default function Home() {
       {/* Main Content */}
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Activities Panel */}
+          {/* Content Panel with Tabs */}
           <div className="lg:col-span-1">
-            <ActivitiesPanel
-              activities={activities || []}
-              onAdd={addActivity}
-              onActivityUpdate={handleActivityUpdate}
-              selectedTheme={selectedTheme}
-              showTimeSelector={true}
-              existingPlan={localPlan}
-              userHistory={userHistory}
-            />
+            {/* Tab Navigation */}
+            <div className="bg-zen-white rounded-t-2xl border border-zen-light-gray border-b-0 p-4">
+              <div className="flex space-x-2 bg-zen-light-gray rounded-lg p-1">
+                <button
+                  onClick={() => setActiveContentTab("activities")}
+                  className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+                    activeContentTab === "activities"
+                      ? "bg-zen-white text-zen-black shadow-sm"
+                      : "text-zen-black hover:bg-zen-white/50"
+                  }`}
+                >
+                  🎯 Activities
+                </button>
+                <button
+                  onClick={() => setActiveContentTab("movies")}
+                  className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+                    activeContentTab === "movies"
+                      ? "bg-zen-white text-zen-black shadow-sm"
+                      : "text-zen-black hover:bg-zen-white/50"
+                  }`}
+                >
+                  🎬 Movies
+                </button>
+                <button
+                  onClick={() => setActiveContentTab("places")}
+                  className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+                    activeContentTab === "places"
+                      ? "bg-zen-white text-zen-black shadow-sm"
+                      : "text-zen-black hover:bg-zen-white/50"
+                  }`}
+                >
+                  📍 Places
+                </button>
+              </div>
+            </div>
+
+            {/* Tab Content */}
+            <div className="rounded-b-2xl">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeContentTab}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {activeContentTab === "activities" && (
+                    <ActivitiesPanel
+                      activities={activities || []}
+                      onAdd={addActivity}
+                      onActivityUpdate={handleActivityUpdate}
+                      selectedTheme={selectedTheme}
+                      showTimeSelector={true}
+                      existingPlan={localPlan}
+                    />
+                  )}
+                  {activeContentTab === "movies" && (
+                    <MoviesPanel onAdd={addActivity} />
+                  )}
+                  {activeContentTab === "places" && (
+                    <PlacesPanel
+                      onAdd={addActivity}
+                      userLocation={userLocation}
+                    />
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </div>
           </div>
 
           {/* Schedule Board */}
@@ -556,12 +758,13 @@ export default function Home() {
               setPlan={setLocalPlan}
               onSave={() => savePlan(localPlan)}
               themes={themes || []}
-              vibes={vibes || []}
               selectedTheme={selectedTheme}
               onThemeChange={handleThemeChange}
               onDragEnd={onDragEnd}
               selectedDate={selectedDate}
               weekendPlan={currentWeekendPlan}
+              onDateChange={handleDateChange}
+              onPlanLoad={handlePlanLoad}
             />
           </div>
         </div>
@@ -594,15 +797,14 @@ export default function Home() {
           </div>
 
           <div className="flex items-center space-x-3">
-            <button
-              onClick={() => setShowHistory(!showHistory)}
-              disabled={!isAuthenticated}
+            <a
+              href="/profile"
               className={
                 isAuthenticated ? "btn btn-secondary" : "btn btn-disabled"
               }
             >
-              📊 {showHistory ? "Hide" : "Show"} History
-            </button>
+              👤 View Profile & History
+            </a>
 
             <button
               onClick={exportSVG}
@@ -633,9 +835,6 @@ export default function Home() {
           </div>
         )}
       </div>
-
-      {/* History Panel */}
-      <AnimatePresence>{showHistory && <HistoryPanel />}</AnimatePresence>
 
       {/* Loading Overlay */}
       {isLoading && (
