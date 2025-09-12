@@ -533,8 +533,8 @@ export default function ActivitiesPanel({
           >
             {filteredAndSortedActivities.map((activity, index) => (
               <Draggable
-                key={activity._id}
-                draggableId={activity._id}
+                key={`activity-${activity._id}-${index}`}
+                draggableId={`activity-${activity._id}-${index}`}
                 index={index}
               >
                 {(provided, snapshot) => (

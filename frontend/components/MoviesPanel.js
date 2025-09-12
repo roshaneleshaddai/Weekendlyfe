@@ -312,7 +312,7 @@ export default function MoviesPanel({ onAdd }) {
       )}
 
       {/* Movies Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[60vh] overflow-y-auto">
+      <div className="grid grid-cols-1 gap-4 max-h-[60vh] overflow-y-auto">
         <AnimatePresence>
           {movies.map((movie) => (
             <motion.div

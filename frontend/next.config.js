@@ -1,5 +1,5 @@
 module.exports = {
-  reactStrictMode: true,
+  reactStrictMode: false, // Disabled to fix react-beautiful-dnd compatibility issues
   async rewrites() {
     return [
       {

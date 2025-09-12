@@ -155,8 +155,18 @@ const DayColumn = ({
             <AnimatePresence>
               {items.map((item, index) => (
                 <Draggable
-                  key={item._id || `${item.activity._id}-${index}`}
-                  draggableId={item._id || `${item.activity._id}-${index}`}
+                  key={`${dayKey}-${
+                    item._id ||
+                    item.activity?._id ||
+                    item.external_activity?.id ||
+                    index
+                  }-${index}`}
+                  draggableId={`${dayKey}-${
+                    item._id ||
+                    item.activity?._id ||
+                    item.external_activity?.id ||
+                    index
+                  }-${index}`}
                   index={index}
                 >
                   {(provided, snapshot) => (

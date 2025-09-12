@@ -1,7 +1,7 @@
 const axios = require("axios");
 
 // TMDB API Configuration
-const TMDB_API_KEY = process.env.TMDB_API_KEY || "your_tmdb_api_key_here";
+const TMDB_API_KEY = process.env.TMDB_API_KEY || "946a34379675d71e136497a29a49b6a5";
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 
 // Google Places API Configuration

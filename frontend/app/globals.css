@@ -58,3 +58,22 @@ body {
   opacity: 1;
   transition: opacity 250ms;
 }
+
+/* React Beautiful DnD improvements */
+.react-beautiful-dnd-draggable {
+  transition: transform 0.2s ease;
+}
+
+.react-beautiful-dnd-dragging {
+  transform: rotate(5deg) scale(1.05);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+}
+
+.react-beautiful-dnd-drag-handle {
+  cursor: grab;
+}
+
+.react-beautiful-dnd-drag-handle:active {
+  cursor: grabbing;
+}

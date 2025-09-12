@@ -570,6 +570,7 @@ export default function Home() {
       const endTime = calculateEndTime(startTime, activity.durationMin);
 
       const newItem = {
+        _id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         activity,
         day,
         order: localPlan[day].length,
