@@ -3,7 +3,7 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        mono: ["Martian Mono", "monospace"],
+        sans: ["Delius", "cursive"],
       },
       colors: {
         "zen-black": "#191314",

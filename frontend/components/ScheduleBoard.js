@@ -132,7 +132,7 @@ const DayColumn = ({
   onDragEnd,
 }) => {
   return (
-    <div className="bg-zen-white rounded-2xl shadow-xl border border-zen-light-gray p-6 min-h-[500px]">
+    <div className="bg-zen-white rounded-2xl shadow-xl border border-zen-light-gray p-6 h-[500px]">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-xl font-bold text-zen-black capitalize flex items-center space-x-2">
           <span className="text-2xl">
@@ -148,9 +148,10 @@ const DayColumn = ({
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className={`space-y-4 min-h-[300px] transition-colors duration-200 ${
+            className={`space-y-4 min-h-[300px] transition-colors flex-1 overflow-y-auto duration-200 ${
               snapshot.isDraggingOver ? "bg-zen-lime rounded-lg" : ""
             }`}
+            style={{ maxHeight: "340px" }}
           >
             <AnimatePresence>
               {items.map((item, index) => (

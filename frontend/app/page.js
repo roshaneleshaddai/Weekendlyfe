@@ -157,6 +157,11 @@ export default function Home() {
                       _id: item.activity._id,
                       ...item.activity, // Spread all activity fields
                     }
+                  : item.activity_data
+                  ? {
+                      _id: item.activity_data._id,
+                      ...item.activity_data, // Use activity_data if available
+                    }
                   : { _id: null },
               };
             }),
@@ -182,6 +187,11 @@ export default function Home() {
                   ? {
                       _id: item.activity._id,
                       ...item.activity, // Spread all activity fields
+                    }
+                  : item.activity_data
+                  ? {
+                      _id: item.activity_data._id,
+                      ...item.activity_data, // Use activity_data if available
                     }
                   : { _id: null },
               };
@@ -228,6 +238,11 @@ export default function Home() {
                   _id: item.activity._id,
                   ...item.activity, // Spread all activity fields
                 }
+              : item.activity_data
+              ? {
+                  _id: item.activity_data._id,
+                  ...item.activity_data, // Use activity_data if available
+                }
               : { _id: null },
           };
         });
@@ -254,6 +269,11 @@ export default function Home() {
               ? {
                   _id: item.activity._id,
                   ...item.activity, // Spread all activity fields
+                }
+              : item.activity_data
+              ? {
+                  _id: item.activity_data._id,
+                  ...item.activity_data, // Use activity_data if available
                 }
               : { _id: null },
           };
@@ -328,9 +348,33 @@ export default function Home() {
             review: item.review || "",
           };
         } else {
-          // Send regular database activity
+          // Send regular database activity with full data
           return {
             activity: activity._id || activity,
+            activity_data: {
+              _id: activity._id,
+              title: activity.title,
+              description: activity.description,
+              category: activity.category,
+              subcategory: activity.subcategory,
+              durationMin: activity.durationMin,
+              icon: activity.icon,
+              color: activity.color,
+              image: activity.image,
+              images: activity.images || [],
+              rating: activity.rating,
+              location: activity.location,
+              address: activity.address,
+              coordinates: activity.coordinates,
+              opening_hours: activity.opening_hours,
+              types: activity.types,
+              source: activity.source,
+              external_id: activity.external_id,
+              release_date: activity.release_date,
+              poster_path: activity.poster_path,
+              backdrop_path: activity.backdrop_path,
+              ...activity, // Spread all other fields to ensure nothing is missed
+            },
             order: idx,
             startTime: item.startTime || "09:00",
             endTime:
@@ -393,9 +437,33 @@ export default function Home() {
             review: item.review || "",
           };
         } else {
-          // Send regular database activity
+          // Send regular database activity with full data
           return {
             activity: activity._id || activity,
+            activity_data: {
+              _id: activity._id,
+              title: activity.title,
+              description: activity.description,
+              category: activity.category,
+              subcategory: activity.subcategory,
+              durationMin: activity.durationMin,
+              icon: activity.icon,
+              color: activity.color,
+              image: activity.image,
+              images: activity.images || [],
+              rating: activity.rating,
+              location: activity.location,
+              address: activity.address,
+              coordinates: activity.coordinates,
+              opening_hours: activity.opening_hours,
+              types: activity.types,
+              source: activity.source,
+              external_id: activity.external_id,
+              release_date: activity.release_date,
+              poster_path: activity.poster_path,
+              backdrop_path: activity.backdrop_path,
+              ...activity, // Spread all other fields to ensure nothing is missed
+            },
             order: idx,
             startTime: item.startTime || "09:00",
             endTime:
@@ -481,11 +549,32 @@ export default function Home() {
     const isExternalActivity = activity.source || activity.external_id;
 
     const newItem = {
+      _id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       activity: isExternalActivity
         ? activity
         : {
             _id: activity._id,
-            ...activity, // Spread all activity fields for normal activities
+            title: activity.title,
+            description: activity.description,
+            category: activity.category,
+            subcategory: activity.subcategory,
+            durationMin: activity.durationMin,
+            icon: activity.icon,
+            color: activity.color,
+            image: activity.image,
+            images: activity.images || [],
+            rating: activity.rating,
+            location: activity.location,
+            address: activity.address,
+            coordinates: activity.coordinates,
+            opening_hours: activity.opening_hours,
+            types: activity.types,
+            source: activity.source,
+            external_id: activity.external_id,
+            release_date: activity.release_date,
+            poster_path: activity.poster_path,
+            backdrop_path: activity.backdrop_path,
+            ...activity, // Spread all other fields to ensure nothing is missed
           },
       day,
       order: localPlan[day].length,
@@ -571,7 +660,30 @@ export default function Home() {
 
       const newItem = {
         _id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        activity,
+        activity: {
+          _id: activity._id,
+          title: activity.title,
+          description: activity.description,
+          category: activity.category,
+          subcategory: activity.subcategory,
+          durationMin: activity.durationMin,
+          icon: activity.icon,
+          color: activity.color,
+          image: activity.image,
+          images: activity.images || [],
+          rating: activity.rating,
+          location: activity.location,
+          address: activity.address,
+          coordinates: activity.coordinates,
+          opening_hours: activity.opening_hours,
+          types: activity.types,
+          source: activity.source,
+          external_id: activity.external_id,
+          release_date: activity.release_date,
+          poster_path: activity.poster_path,
+          backdrop_path: activity.backdrop_path,
+          ...activity, // Spread all other fields to ensure nothing is missed
+        },
         day,
         order: localPlan[day].length,
         startTime,
