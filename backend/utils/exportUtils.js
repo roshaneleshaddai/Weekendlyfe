@@ -6,7 +6,7 @@ function generateSVGPoster(items) {
 
   const svgWidth = 800,
     svgHeight = 1000;
-  const header = `<text x="40" y="60" font-size="28" font-family="sans-serif" fill="#111">Weekendly — Your Weekend Plan</text>`;
+  const header = `<text x="40" y="60" font-size="28" font-family="sans-serif" fill="#111">Weekendlyfe — Your Weekend Plan</text>`;
   const box = (x, y, w, h, title) =>
     `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="12" fill="#fff" stroke="#eee"/><text x="${
       x + 18

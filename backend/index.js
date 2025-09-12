@@ -35,7 +35,7 @@ app.use("/api/external", externalRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
-  res.json({ status: "OK", message: "Weekendly API is running" });
+  res.json({ status: "OK", message: "Weekendlyfe API is running" });
 });
 
 const PORT = process.env.PORT || 4000;

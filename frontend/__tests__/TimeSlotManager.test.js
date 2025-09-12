@@ -120,7 +120,7 @@ describe("TimeSlotManager", () => {
 });
 
 // Integration test example
-describe("Weekendly Integration", () => {
+describe("Weekendlyfe Integration", () => {
   test("plan items have required properties", () => {
     mockPlanItems.forEach((item) => {
       expect(item).toHaveProperty("_id");

@@ -3,7 +3,7 @@ import { AuthProvider } from "../lib/AuthContext";
 import AuthNav from "../components/AuthNav";
 
 export const metadata = {
-  title: "Weekendly - Your Perfect Weekend Planner",
+  title: "Weekendlyfe - Your Perfect Weekend Planner",
   description:
     "Plan your perfect weekend with activities, themes, and time management",
 };
@@ -30,7 +30,7 @@ export default function RootLayout({ children }) {
                     <span className="text-zen-lime font-bold text-sm">W</span>
                   </div>
                   <h1 className="text-2xl font-bold text-zen-black">
-                    Weekendly
+                  Weekendlyfe
                   </h1>
                 </div>
                 <AuthNav />
@@ -41,7 +41,7 @@ export default function RootLayout({ children }) {
             </main>
             <footer className="bg-zen-white border-t border-zen-light-gray py-6 mt-8">
               <div className="max-w-7xl mx-auto px-4 text-sm text-zen-black text-center">
-                Made with ❤️ — Weekendly Planner • Plan your perfect weekend
+                Made with ❤️ — Weekendlyfe Planner • Plan your perfect weekend
               </div>
             </footer>
           </div>

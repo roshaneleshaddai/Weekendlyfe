@@ -1,4 +1,4 @@
-const CACHE_NAME = "weekendly-cache-v1";
+const CACHE_NAME = "Weekendlyfe-cache-v1";
 const toCache = ["/", "/_next/static/"];
 self.addEventListener("install", (evt) => {
   self.skipWaiting();

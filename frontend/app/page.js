@@ -680,6 +680,40 @@ export default function Home() {
     });
     return conflicts;
   };
+
+  // Check time conflict for a specific activity and day
+  const checkTimeConflict = (
+    activity,
+    day,
+    startTime = "09:00",
+    endTime = null
+  ) => {
+    const finalEndTime =
+      endTime || calculateEndTime(startTime, activity.durationMin || 60);
+    const dayItems = localPlan[day] || [];
+    const newStart = timeToMinutes(startTime);
+    const newEnd = timeToMinutes(finalEndTime);
+
+    for (const item of dayItems) {
+      if (item.startTime && item.endTime) {
+        const itemStart = timeToMinutes(item.startTime);
+        const itemEnd = timeToMinutes(item.endTime);
+
+        // Check for overlap: new activity starts before existing ends AND new activity ends after existing starts
+        if (newStart < itemEnd && newEnd > itemStart) {
+          return {
+            hasConflict: true,
+            conflictingActivity:
+              item.activity?.title ||
+              item.external_activity?.title ||
+              "Unknown Activity",
+            conflictingTime: `${item.startTime} - ${item.endTime}`,
+          };
+        }
+      }
+    }
+    return { hasConflict: false };
+  };
   // ------------------- END helper -------------------
 
   const handleThemeChange = (themeId) => {
@@ -743,6 +777,19 @@ export default function Home() {
         60;
       const endTime = calculateEndTime(startTime, duration);
 
+      // Check for time conflicts before allowing the drop
+      const conflict = checkTimeConflict(activity, day, startTime, endTime);
+      if (conflict.hasConflict) {
+        showNotification(
+          {
+            title: "Time conflict detected",
+            message: `This activity conflicts with "${conflict.conflictingActivity}" (${conflict.conflictingTime}). Please choose a different time slot or move the conflicting activity first.`,
+          },
+          "error"
+        );
+        return; // Prevent the drop
+      }
+
       const isExternal = activity.source || activity.external_id;
       const activityPayload = isExternal
         ? activity
@@ -803,6 +850,27 @@ export default function Home() {
       const dstList = Array.from(localPlan[dstDay] || []);
 
       const [moved] = srcList.splice(source.index, 1);
+
+      // If moving to a different day, check for conflicts
+      if (srcDay !== dstDay) {
+        const conflict = checkTimeConflict(
+          moved.activity || moved,
+          dstDay,
+          moved.startTime,
+          moved.endTime
+        );
+        if (conflict.hasConflict) {
+          showNotification(
+            {
+              title: "Time conflict detected",
+              message: `This activity conflicts with "${conflict.conflictingActivity}" (${conflict.conflictingTime}) on ${dstDay}. Please choose a different time slot or move the conflicting activity first.`,
+            },
+            "error"
+          );
+          return; // Prevent the move
+        }
+      }
+
       moved.day = dstDay;
       dstList.splice(destination.index, 0, moved);
 
@@ -976,6 +1044,7 @@ export default function Home() {
               weekendPlan={currentWeekendPlan}
               onDateChange={handleDateChange}
               onPlanLoad={handlePlanLoad}
+              checkTimeConflict={checkTimeConflict}
             />
           </div>
         </div>

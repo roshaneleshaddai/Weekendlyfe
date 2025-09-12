@@ -128,9 +128,25 @@ const DayColumn = ({
   onTimeChange,
   onVibeChange,
   onNotesChange,
-
   onDragEnd,
+  checkTimeConflict,
 }) => {
+  const [dragOverConflict, setDragOverConflict] = useState(null);
+
+  const handleDragOver = (provided, snapshot) => {
+    // Check for conflicts when dragging over this column
+    if (snapshot.isDraggingOver && snapshot.draggingFromThisWith) {
+      // This is a drag from within the same column (reordering)
+      return;
+    }
+
+    if (snapshot.isDraggingOver && snapshot.draggingFromThisWith === null) {
+      // This is a drag from outside (like from activities panel)
+      // We can't check conflicts here because we don't have the activity data
+      // The conflict check will happen in onDragEnd
+    }
+  };
+
   return (
     <div className="bg-zen-white rounded-2xl shadow-xl border border-zen-light-gray p-6 h-[500px]">
       <div className="flex items-center justify-between mb-6">
@@ -144,64 +160,74 @@ const DayColumn = ({
       </div>
 
       <Droppable droppableId={dayKey}>
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            className={`space-y-4 min-h-[300px] transition-colors flex-1 overflow-y-auto duration-200 ${
-              snapshot.isDraggingOver ? "bg-zen-lime rounded-lg" : ""
-            }`}
-            style={{ maxHeight: "340px" }}
-          >
-            <AnimatePresence>
-              {items.map((item, index) => (
-                <Draggable
-                  key={`${dayKey}-${
-                    item._id ||
-                    item.activity?._id ||
-                    item.external_activity?.id ||
-                    index
-                  }-${index}`}
-                  draggableId={`${dayKey}-${
-                    item._id ||
-                    item.activity?._id ||
-                    item.external_activity?.id ||
-                    index
-                  }-${index}`}
-                  index={index}
-                >
-                  {(provided, snapshot) => (
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.draggableProps}
-                      {...provided.dragHandleProps}
-                      className={`${
-                        snapshot.isDragging ? "rotate-2 scale-105" : ""
-                      }`}
-                    >
-                      <PlanItemCard
-                        item={item}
-                        onRemove={onRemove}
-                        onTimeChange={onTimeChange}
-                        onVibeChange={onVibeChange}
-                        onNotesChange={onNotesChange}
-                      />
-                    </div>
-                  )}
-                </Draggable>
-              ))}
-            </AnimatePresence>
-            {provided.placeholder}
+        {(provided, snapshot) => {
+          handleDragOver(provided, snapshot);
 
-            {items.length === 0 && (
-              <div className="text-center py-12 text-zen-black">
-                <div className="text-4xl mb-2">📝</div>
-                <p>No activities planned for {dayKey}</p>
-                <p className="text-sm">Drag activities here to plan your day</p>
-              </div>
-            )}
-          </div>
-        )}
+          return (
+            <div
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+              className={`space-y-4 min-h-[300px] transition-colors flex-1 overflow-y-auto duration-200 ${
+                snapshot.isDraggingOver
+                  ? dragOverConflict
+                    ? "bg-red-100 border-2 border-red-300 rounded-lg"
+                    : "bg-zen-lime rounded-lg"
+                  : ""
+              }`}
+              style={{ maxHeight: "340px" }}
+            >
+              <AnimatePresence>
+                {items.map((item, index) => (
+                  <Draggable
+                    key={`${dayKey}-${
+                      item._id ||
+                      item.activity?._id ||
+                      item.external_activity?.id ||
+                      index
+                    }-${index}`}
+                    draggableId={`${dayKey}-${
+                      item._id ||
+                      item.activity?._id ||
+                      item.external_activity?.id ||
+                      index
+                    }-${index}`}
+                    index={index}
+                  >
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.draggableProps}
+                        {...provided.dragHandleProps}
+                        className={`${
+                          snapshot.isDragging ? "rotate-2 scale-105" : ""
+                        }`}
+                      >
+                        <PlanItemCard
+                          item={item}
+                          onRemove={onRemove}
+                          onTimeChange={onTimeChange}
+                          onVibeChange={onVibeChange}
+                          onNotesChange={onNotesChange}
+                        />
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+              </AnimatePresence>
+              {provided.placeholder}
+
+              {items.length === 0 && (
+                <div className="text-center py-12 text-zen-black">
+                  <div className="text-4xl mb-2">📝</div>
+                  <p>No activities planned for {dayKey}</p>
+                  <p className="text-sm">
+                    Drag activities here to plan your day
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        }}
       </Droppable>
     </div>
   );
@@ -219,6 +245,7 @@ export default function ScheduleBoard({
   weekendPlan,
   onDateChange,
   onPlanLoad,
+  checkTimeConflict,
 }) {
   const { isAuthenticated } = useAuth();
   const [showTimeSlots, setShowTimeSlots] = useState(false);
@@ -528,6 +555,7 @@ export default function ScheduleBoard({
           onVibeChange={handleVibeChange}
           onNotesChange={handleNotesChange}
           onDragEnd={onDragEnd}
+          checkTimeConflict={checkTimeConflict}
         />
         <DayColumn
           dayKey="sunday"
@@ -537,6 +565,7 @@ export default function ScheduleBoard({
           onVibeChange={handleVibeChange}
           onNotesChange={handleNotesChange}
           onDragEnd={onDragEnd}
+          checkTimeConflict={checkTimeConflict}
         />
       </div>
     </div>
