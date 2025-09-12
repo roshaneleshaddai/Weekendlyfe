@@ -290,14 +290,43 @@ export default function Home() {
     }
   }, [selectedDate, isAuthenticated]);
 
-  const showNotification = (message, type = "success") => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 3000);
+  const showNotification = (payload, type = "success") => {
+    // payload can be a string or an object: { title, message }
+    const notificationObj =
+      typeof payload === "string"
+        ? { title: null, message: payload }
+        : { title: payload.title || null, message: payload.message || "" };
+
+    setNotification({ ...notificationObj, type });
+    setTimeout(() => setNotification(null), 4000);
   };
 
   const savePlan = async (plan) => {
     if (!isAuthenticated) {
       showNotification("Please login to save your plan", "error");
+      return;
+    }
+
+    // Run quick frontend conflict detection before sending to server
+    const conflicts = checkPlanConflicts(plan);
+    if (conflicts.length > 0) {
+      // Build a friendly multi-line message with first few conflicts
+      const lines = conflicts.slice(0, 3).map((c) => {
+        return `${c.day.toUpperCase()}: “${c.aTitle}” (${
+          c.aTime
+        }) conflicts with “${c.bTitle}” (${c.bTime})`;
+      });
+      const prettyMessage = lines.join("\n");
+
+      showNotification(
+        {
+          title: "Time slot already booked",
+          message:
+            prettyMessage +
+            "\n\nPlease adjust the time or move the activity to another slot.",
+        },
+        "error"
+      );
       return;
     }
 
@@ -614,23 +643,61 @@ export default function Home() {
       .padStart(2, "0")}`;
   };
 
+  // ------------------- ADD: helper to check conflicts -------------------
+  const timeToMinutes = (timeStr) => {
+    if (!timeStr) return null;
+    const [h, m] = timeStr.split(":").map(Number);
+    return h * 60 + m;
+  };
+
+  const checkPlanConflicts = (planToCheck) => {
+    const conflicts = [];
+    ["saturday", "sunday"].forEach((day) => {
+      const items = planToCheck[day] || [];
+      for (let i = 0; i < items.length; i++) {
+        const a = items[i];
+        if (!a.startTime || !a.endTime) continue;
+        const aStart = timeToMinutes(a.startTime);
+        const aEnd = timeToMinutes(a.endTime);
+        for (let j = i + 1; j < items.length; j++) {
+          const b = items[j];
+          if (!b.startTime || !b.endTime) continue;
+          const bStart = timeToMinutes(b.startTime);
+          const bEnd = timeToMinutes(b.endTime);
+          if (aStart < bEnd && bStart < aEnd) {
+            conflicts.push({
+              day,
+              aTitle:
+                a.activity?.title || a.external_activity?.title || "Item A",
+              bTitle:
+                b.activity?.title || b.external_activity?.title || "Item B",
+              aTime: `${a.startTime} - ${a.endTime}`,
+              bTime: `${b.startTime} - ${b.endTime}`,
+            });
+          }
+        }
+      }
+    });
+    return conflicts;
+  };
+  // ------------------- END helper -------------------
+
   const handleThemeChange = (themeId) => {
     setSelectedTheme(themeId);
     // Apply theme-based filtering to activities
   };
 
   const onDragEnd = (result) => {
-    const { source, destination } = result;
+    const { source, destination, draggableId } = result;
 
-    console.log("Drag ended:", { source, destination });
+    console.log("Drag ended:", { source, destination, draggableId });
 
     // If dropped outside a valid drop zone
     if (!destination) {
-      console.log("No destination, drag cancelled");
       return;
     }
 
-    // If dropped in the same position
+    // If dropped in the same position (no-op)
     if (
       source.droppableId === destination.droppableId &&
       source.index === destination.index
@@ -638,54 +705,77 @@ export default function Home() {
       return;
     }
 
-    // Handle drag from activities panel to schedule
+    // Dragging from Activities panel into schedule
     if (
       source.droppableId === "activities" &&
       (destination.droppableId === "saturday" ||
         destination.droppableId === "sunday")
     ) {
-      console.log("Dragging from activities to schedule");
-      // We need to get the activity from the filtered list, not the original activities array
-      const filteredActivities = activities || [];
-      const activity = filteredActivities[source.index];
-      console.log("Activity:", activity);
+      // Prefer resolving by draggableId (format: "activity-<id>")
+      let activity = null;
+      if (draggableId) {
+        const maybeId = String(draggableId).replace(/^activity-/, "");
+        activity =
+          (activities || []).find(
+            (a) =>
+              String(a._id) === maybeId ||
+              String(a.id) === maybeId ||
+              String(a.external_id) === maybeId
+          ) || null;
+      }
+
+      // Fallback: use source.index against activities array (less reliable if filtered/reordered)
       if (!activity) {
-        console.log("No activity found at index:", source.index);
+        activity = (activities || [])[source.index] || null;
+      }
+
+      if (!activity) {
+        console.warn("Dragged activity could not be resolved", result);
         return;
       }
 
       const day = destination.droppableId;
       const startTime = "09:00";
-      const endTime = calculateEndTime(startTime, activity.durationMin);
+      const duration =
+        activity.durationMin ||
+        activity.external_activity?.durationMin ||
+        activity.duration ||
+        60;
+      const endTime = calculateEndTime(startTime, duration);
+
+      const isExternal = activity.source || activity.external_id;
+      const activityPayload = isExternal
+        ? activity
+        : {
+            _id: activity._id,
+            title: activity.title,
+            description: activity.description,
+            category: activity.category,
+            subcategory: activity.subcategory,
+            durationMin: activity.durationMin,
+            icon: activity.icon,
+            color: activity.color,
+            image: activity.image,
+            images: activity.images || [],
+            rating: activity.rating,
+            location: activity.location,
+            address: activity.address,
+            coordinates: activity.coordinates,
+            opening_hours: activity.opening_hours,
+            types: activity.types,
+            source: activity.source,
+            external_id: activity.external_id,
+            release_date: activity.release_date,
+            poster_path: activity.poster_path,
+            backdrop_path: activity.backdrop_path,
+            ...activity,
+          };
 
       const newItem = {
-        _id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        activity: {
-          _id: activity._id,
-          title: activity.title,
-          description: activity.description,
-          category: activity.category,
-          subcategory: activity.subcategory,
-          durationMin: activity.durationMin,
-          icon: activity.icon,
-          color: activity.color,
-          image: activity.image,
-          images: activity.images || [],
-          rating: activity.rating,
-          location: activity.location,
-          address: activity.address,
-          coordinates: activity.coordinates,
-          opening_hours: activity.opening_hours,
-          types: activity.types,
-          source: activity.source,
-          external_id: activity.external_id,
-          release_date: activity.release_date,
-          poster_path: activity.poster_path,
-          backdrop_path: activity.backdrop_path,
-          ...activity, // Spread all other fields to ensure nothing is missed
-        },
+        _id: `temp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+        activity: activityPayload,
         day,
-        order: localPlan[day].length,
+        order: localPlan[day]?.length || 0,
         startTime,
         endTime,
         vibe: "",
@@ -694,17 +784,18 @@ export default function Home() {
 
       setLocalPlan((prev) => ({
         ...prev,
-        [day]: [...prev[day], newItem],
+        [day]: [...(prev[day] || []), newItem],
       }));
 
       showNotification(
         `Activity added to ${day.charAt(0).toUpperCase() + day.slice(1)}`,
         "success"
       );
+
       return;
     }
 
-    // Handle reordering within schedule (existing functionality)
+    // Reordering / moving items inside schedule
     if (source.droppableId === "saturday" || source.droppableId === "sunday") {
       const srcDay = source.droppableId;
       const dstDay = destination.droppableId;
@@ -779,13 +870,20 @@ export default function Home() {
           initial={{ opacity: 0, y: -50 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -50 }}
-          className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg ${
+          className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg max-w-sm text-left ${
             notification.type === "success"
               ? "bg-zen-lime text-zen-black"
               : "bg-zen-black text-zen-white"
           }`}
         >
-          {notification.message}
+          {notification.title && (
+            <div className="font-semibold text-sm mb-1">
+              {notification.title}
+            </div>
+          )}
+          <div className="text-sm whitespace-pre-line">
+            {notification.message}
+          </div>
         </motion.div>
       )}
 

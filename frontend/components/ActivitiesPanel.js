@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Droppable, Draggable } from "react-beautiful-dnd";
 import { useAuth } from "../lib/AuthContext";
@@ -24,6 +24,7 @@ const ActivityCard = ({
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("");
   const [conflictError, setConflictError] = useState("");
+  const [hasConflict, setHasConflict] = useState(false);
 
   const calculateEndTime = (start, duration) => {
     const [hours, minutes] = start.split(":").map(Number);
@@ -54,7 +55,10 @@ const ActivityCard = ({
         if (newStart < itemEnd && newEnd > itemStart) {
           return {
             hasConflict: true,
-            conflictingActivity: item.activity?.title || "Unknown Activity",
+            conflictingActivity:
+              item.activity?.title ||
+              item.external_activity?.title ||
+              "Unknown Activity",
             conflictingTime: `${item.startTime} - ${item.endTime}`,
           };
         }
@@ -63,28 +67,48 @@ const ActivityCard = ({
     return { hasConflict: false };
   };
 
+  // Re-check conflict whenever plan, selected day/time/duration change
+  useEffect(() => {
+    if (!showTimeForm) {
+      setHasConflict(false);
+      setConflictError("");
+      return;
+    }
+    const finalEnd =
+      endTime || calculateEndTime(startTime, activity.durationMin || 60);
+    const c = checkTimeConflict(startTime, finalEnd, selectedDay);
+    if (c.hasConflict) {
+      setHasConflict(true);
+      setConflictError(
+        `Time conflict! This activity overlaps with "${c.conflictingActivity}" (${c.conflictingTime}). Please choose a different time.`
+      );
+    } else {
+      setHasConflict(false);
+      setConflictError("");
+    }
+  }, [
+    existingPlan,
+    selectedDay,
+    startTime,
+    endTime,
+    activity.durationMin,
+    showTimeForm,
+  ]);
+
   const handleAddClick = () => {
     if (showTimeSelector) {
       setShowTimeForm(true);
-      setEndTime(calculateEndTime(startTime, activity.durationMin));
+      setEndTime(calculateEndTime(startTime, activity.durationMin || 60));
     } else {
       onAdd(activity);
     }
   };
 
   const handleConfirmAdd = () => {
+    if (hasConflict) return; // defensive
     const finalEndTime =
-      endTime || calculateEndTime(startTime, activity.durationMin);
-    const conflict = checkTimeConflict(startTime, finalEndTime, selectedDay);
+      endTime || calculateEndTime(startTime, activity.durationMin || 60);
 
-    if (conflict.hasConflict) {
-      setConflictError(
-        `Time conflict! This activity overlaps with "${conflict.conflictingActivity}" (${conflict.conflictingTime}). Please choose a different time.`
-      );
-      return;
-    }
-
-    setConflictError("");
     const activityWithTime = {
       ...activity,
       day: selectedDay,
@@ -263,11 +287,11 @@ const ActivityCard = ({
               <div className="flex gap-2">
                 <button
                   onClick={handleConfirmAdd}
-                  disabled={!isAuthenticated}
+                  disabled={!isAuthenticated || hasConflict}
                   className={
-                    isAuthenticated
+                    isAuthenticated && !hasConflict
                       ? "btn btn-primary flex-1 text-xs"
-                      : "btn btn-disabled flex-1 text-xs"
+                      : "btn btn-disabled flex-1 text-xs opacity-60"
                   }
                 >
                   Confirm Add
@@ -534,7 +558,7 @@ export default function ActivitiesPanel({
             {filteredAndSortedActivities.map((activity, index) => (
               <Draggable
                 key={`activity-${activity._id}-${index}`}
-                draggableId={`activity-${activity._id}-${index}`}
+                draggableId={`activity-${activity._id || activity.id}`}
                 index={index}
               >
                 {(provided, snapshot) => (
