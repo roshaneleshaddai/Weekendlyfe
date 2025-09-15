@@ -13,7 +13,7 @@ const PlaceCard = ({ place, onAdd, isAuthenticated }) => {
 
     // Convert place to activity format that matches localPlan structure
     const placeActivity = {
-      _id: `place_${place.id}`,
+      _id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Use proper temp ID
       title: place.title,
       description: place.description,
       category: place.category,
@@ -28,7 +28,7 @@ const PlaceCard = ({ place, onAdd, isAuthenticated }) => {
       rating: place.rating,
       review_count: place.review_count,
       source: place.source,
-      external_id: place.external_id,
+      external_id: place.id, // Store the Google Places ID here instead
       opening_hours: place.opening_hours,
       types: place.types,
       price_level: place.price_level,

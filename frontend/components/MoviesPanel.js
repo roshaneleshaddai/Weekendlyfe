@@ -13,7 +13,7 @@ const MovieCard = ({ movie, onAdd, isAuthenticated }) => {
 
     // Convert movie to activity format that matches localPlan structure
     const movieActivity = {
-      _id: `movie_${movie.id}`,
+      _id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Use proper temp ID
       title: movie.title,
       description: movie.description,
       category: movie.category,
@@ -24,7 +24,7 @@ const MovieCard = ({ movie, onAdd, isAuthenticated }) => {
       images: movie.poster_path ? [movie.poster_path] : [],
       rating: movie.rating,
       source: movie.source,
-      external_id: movie.external_id,
+      external_id: movie.id, // Store the TMDB ID here instead
       release_date: movie.release_date,
       poster_path: movie.poster_path,
       backdrop_path: movie.backdrop_path,
