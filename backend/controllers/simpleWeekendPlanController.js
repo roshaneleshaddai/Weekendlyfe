@@ -117,8 +117,7 @@ const getWeekendPlanByDate = async (req, res) => {
 
     let plan = await WeekendPlan.findOne({
       user: req.userId,
-      "weekend_date_range.start_date": { $lte: sunday },
-      "weekend_date_range.end_date": { $gte: saturday },
+      weekend_date: saturday, // Look for exact Saturday match
     })
       .populate("saturday_activities.activity_data._id")
       .populate("sunday_activities.activity_data._id")
@@ -151,8 +150,7 @@ const getWeekendPlanByDate = async (req, res) => {
         if (error.code === 11000) {
           plan = await WeekendPlan.findOne({
             user: req.userId,
-            "weekend_date_range.start_date": { $lte: sunday },
-            "weekend_date_range.end_date": { $gte: saturday },
+            weekend_date: saturday, // Look for exact Saturday match
           })
             .populate("saturday_activities.activity_data._id")
             .populate("sunday_activities.activity_data._id")
@@ -270,11 +268,10 @@ const createOrUpdateWeekendPlan = async (req, res) => {
       });
     }
 
-    // Find existing plan for this weekend range
+    // Find existing plan for this exact weekend date
     let plan = await WeekendPlan.findOne({
       user: req.userId,
-      "weekend_date_range.start_date": { $lte: sunday },
-      "weekend_date_range.end_date": { $gte: saturday },
+      weekend_date: saturday, // Look for exact Saturday match
     });
 
     if (plan) {
