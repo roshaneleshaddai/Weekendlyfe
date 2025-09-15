@@ -95,7 +95,18 @@ const getWeekendPlanByDate = async (req, res) => {
 
     // Find the Saturday of the weekend containing this date
     const dayOfWeek = targetDate.getDay();
-    const saturdayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // If Sunday, go back 6 days; otherwise go to Saturday
+    let saturdayOffset;
+    if (dayOfWeek === 0) {
+      // Sunday: go back 1 day to get Saturday
+      saturdayOffset = -1;
+    } else if (dayOfWeek === 6) {
+      // Saturday: already Saturday, no offset needed
+      saturdayOffset = 0;
+    } else {
+      // Monday-Friday: go back to previous Saturday
+      saturdayOffset = -(dayOfWeek + 1);
+    }
+
     const saturday = new Date(targetDate);
     saturday.setDate(targetDate.getDate() + saturdayOffset);
     saturday.setHours(0, 0, 0, 0);
@@ -221,7 +232,18 @@ const createOrUpdateWeekendPlan = async (req, res) => {
 
     // Find the Saturday of the weekend containing this date
     const dayOfWeek = targetDate.getDay();
-    const saturdayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // If Sunday, go back 6 days; otherwise go to Saturday
+    let saturdayOffset;
+    if (dayOfWeek === 0) {
+      // Sunday: go back 1 day to get Saturday
+      saturdayOffset = -1;
+    } else if (dayOfWeek === 6) {
+      // Saturday: already Saturday, no offset needed
+      saturdayOffset = 0;
+    } else {
+      // Monday-Friday: go back to previous Saturday
+      saturdayOffset = -(dayOfWeek + 1);
+    }
+
     const saturday = new Date(targetDate);
     saturday.setDate(targetDate.getDate() + saturdayOffset);
     saturday.setHours(0, 0, 0, 0);
