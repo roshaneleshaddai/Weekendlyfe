@@ -10,6 +10,14 @@ import PlacesPanel from "../components/PlacesPanel";
 import { useAuth } from "../lib/AuthContext";
 import apiService, { activityAPI, planAPI, themeAPI } from "../lib/apiService";
 import { formatDate, formatDateShort, getWeekendDates } from "../lib/dateUtils";
+import {
+  convertBackendPlanToLocal,
+  convertLocalPlanToBackend,
+  checkPlanConflicts,
+  createPlanItem,
+  calculateEndTime,
+  timeToMinutes,
+} from "../lib/weekendPlanUtils";
 
 // Typing Text Component
 const TypingText = ({ texts, className = "" }) => {
@@ -132,71 +140,8 @@ export default function Home() {
     try {
       const plan = await planAPI.getByDate(date);
       if (plan) {
-        // Convert weekend plan format to local plan format
-        const convertedPlan = {
-          saturday: (plan.saturday_activities || [])
-            .sort((a, b) => (a.order || 0) - (b.order || 0))
-            .map((item) => {
-              // Handle external activities
-              if (item.external_activity) {
-                return {
-                  ...item,
-                  day: "saturday",
-                  activity: {
-                    _id: item.external_activity.id,
-                    ...item.external_activity, // Flatten external activity data
-                  },
-                };
-              }
-              // Handle regular activities
-              return {
-                ...item,
-                day: "saturday",
-                activity: item.activity
-                  ? {
-                      _id: item.activity._id,
-                      ...item.activity, // Spread all activity fields
-                    }
-                  : item.activity_data
-                  ? {
-                      _id: item.activity_data._id,
-                      ...item.activity_data, // Use activity_data if available
-                    }
-                  : { _id: null },
-              };
-            }),
-          sunday: (plan.sunday_activities || [])
-            .sort((a, b) => (a.order || 0) - (b.order || 0))
-            .map((item) => {
-              // Handle external activities
-              if (item.external_activity) {
-                return {
-                  ...item,
-                  day: "sunday",
-                  activity: {
-                    _id: item.external_activity.id,
-                    ...item.external_activity, // Flatten external activity data
-                  },
-                };
-              }
-              // Handle regular activities
-              return {
-                ...item,
-                day: "sunday",
-                activity: item.activity
-                  ? {
-                      _id: item.activity._id,
-                      ...item.activity, // Spread all activity fields
-                    }
-                  : item.activity_data
-                  ? {
-                      _id: item.activity_data._id,
-                      ...item.activity_data, // Use activity_data if available
-                    }
-                  : { _id: null },
-              };
-            }),
-        };
+        // Convert weekend plan format to local plan format using utility
+        const convertedPlan = convertBackendPlanToLocal(plan);
         setLocalPlan(convertedPlan);
         console.log("Plan loaded successfully:", convertedPlan);
       } else {
@@ -215,71 +160,8 @@ export default function Home() {
   useEffect(() => {
     // Load weekend plan data
     if (currentWeekendPlan) {
-      const saturday = (currentWeekendPlan.saturday_activities || [])
-        .sort((a, b) => (a.order || 0) - (b.order || 0))
-        .map((item) => {
-          // Handle external activities
-          if (item.external_activity) {
-            return {
-              ...item,
-              day: "saturday",
-              activity: {
-                _id: item.external_activity.id,
-                ...item.external_activity, // Flatten external activity data
-              },
-            };
-          }
-          // Handle regular activities
-          return {
-            ...item,
-            day: "saturday",
-            activity: item.activity
-              ? {
-                  _id: item.activity._id,
-                  ...item.activity, // Spread all activity fields
-                }
-              : item.activity_data
-              ? {
-                  _id: item.activity_data._id,
-                  ...item.activity_data, // Use activity_data if available
-                }
-              : { _id: null },
-          };
-        });
-
-      const sunday = (currentWeekendPlan.sunday_activities || [])
-        .sort((a, b) => (a.order || 0) - (b.order || 0))
-        .map((item) => {
-          // Handle external activities
-          if (item.external_activity) {
-            return {
-              ...item,
-              day: "sunday",
-              activity: {
-                _id: item.external_activity.id,
-                ...item.external_activity, // Flatten external activity data
-              },
-            };
-          }
-          // Handle regular activities
-          return {
-            ...item,
-            day: "sunday",
-            activity: item.activity
-              ? {
-                  _id: item.activity._id,
-                  ...item.activity, // Spread all activity fields
-                }
-              : item.activity_data
-              ? {
-                  _id: item.activity_data._id,
-                  ...item.activity_data, // Use activity_data if available
-                }
-              : { _id: null },
-          };
-        });
-
-      setLocalPlan({ saturday, sunday });
+      const convertedPlan = convertBackendPlanToLocal(currentWeekendPlan);
+      setLocalPlan(convertedPlan);
     }
   }, [currentWeekendPlan]);
 
@@ -312,9 +194,9 @@ export default function Home() {
     if (conflicts.length > 0) {
       // Build a friendly multi-line message with first few conflicts
       const lines = conflicts.slice(0, 3).map((c) => {
-        return `${c.day.toUpperCase()}: “${c.aTitle}” (${
-          c.aTime
-        }) conflicts with “${c.bTitle}” (${c.bTime})`;
+        return `${c.day.toUpperCase()}: "${c.activity1}" (${
+          c.time1
+        }) conflicts with "${c.activity2}" (${c.time2})`;
       });
       const prettyMessage = lines.join("\n");
 
@@ -332,189 +214,16 @@ export default function Home() {
 
     setIsLoading(true);
     try {
-      const saturdayActivities = plan.saturday.map((item, idx) => {
-        const activity = item.activity;
-        const isExternalActivity = activity?.source || activity?.external_id;
+      console.log(plan);
 
-        if (isExternalActivity) {
-          // Send external activity data
-          return {
-            activity: null, // No database reference
-            external_activity: {
-              id: activity.id || activity._id,
-              title: activity.title,
-              description: activity.description,
-              category: activity.category,
-              subcategory: activity.subcategory,
-              durationMin: activity.durationMin,
-              icon: activity.icon,
-              color: activity.color,
-              images: activity.images || [],
-              rating: activity.rating,
-              source: activity.source,
-              external_id: activity.external_id,
-              location: activity.location,
-              address: activity.address,
-              coordinates: activity.coordinates,
-              release_date: activity.release_date,
-              poster_path: activity.poster_path,
-              backdrop_path: activity.backdrop_path,
-              opening_hours: activity.opening_hours,
-              types: activity.types,
-            },
-            order: idx,
-            startTime: item.startTime || "09:00",
-            endTime:
-              item.endTime ||
-              calculateEndTime(
-                item.startTime || "09:00",
-                activity?.durationMin || 60
-              ),
-            vibe: item.vibe || "",
-            notes: item.notes || "",
-            completed: item.completed || false,
-            rating: item.rating || null,
-            review: item.review || "",
-          };
-        } else {
-          // Send regular database activity with full data
-          return {
-            activity: activity._id || activity,
-            activity_data: {
-              _id: activity._id,
-              title: activity.title,
-              description: activity.description,
-              category: activity.category,
-              subcategory: activity.subcategory,
-              durationMin: activity.durationMin,
-              icon: activity.icon,
-              color: activity.color,
-              image: activity.image,
-              images: activity.images || [],
-              rating: activity.rating,
-              location: activity.location,
-              address: activity.address,
-              coordinates: activity.coordinates,
-              opening_hours: activity.opening_hours,
-              types: activity.types,
-              source: activity.source,
-              external_id: activity.external_id,
-              release_date: activity.release_date,
-              poster_path: activity.poster_path,
-              backdrop_path: activity.backdrop_path,
-              ...activity, // Spread all other fields to ensure nothing is missed
-            },
-            order: idx,
-            startTime: item.startTime || "09:00",
-            endTime:
-              item.endTime ||
-              calculateEndTime(
-                item.startTime || "09:00",
-                activity?.durationMin || 60
-              ),
-            vibe: item.vibe || "",
-            notes: item.notes || "",
-            completed: item.completed || false,
-            rating: item.rating || null,
-            review: item.review || "",
-          };
-        }
-      });
-
-      const sundayActivities = plan.sunday.map((item, idx) => {
-        const activity = item.activity;
-        const isExternalActivity = activity?.source || activity?.external_id;
-
-        if (isExternalActivity) {
-          // Send external activity data
-          return {
-            activity: null, // No database reference
-            external_activity: {
-              id: activity.id || activity._id,
-              title: activity.title,
-              description: activity.description,
-              category: activity.category,
-              subcategory: activity.subcategory,
-              durationMin: activity.durationMin,
-              icon: activity.icon,
-              color: activity.color,
-              images: activity.images || [],
-              rating: activity.rating,
-              source: activity.source,
-              external_id: activity.external_id,
-              location: activity.location,
-              address: activity.address,
-              coordinates: activity.coordinates,
-              release_date: activity.release_date,
-              poster_path: activity.poster_path,
-              backdrop_path: activity.backdrop_path,
-              opening_hours: activity.opening_hours,
-              types: activity.types,
-            },
-            order: idx,
-            startTime: item.startTime || "09:00",
-            endTime:
-              item.endTime ||
-              calculateEndTime(
-                item.startTime || "09:00",
-                activity?.durationMin || 60
-              ),
-            vibe: item.vibe || "",
-            notes: item.notes || "",
-            completed: item.completed || false,
-            rating: item.rating || null,
-            review: item.review || "",
-          };
-        } else {
-          // Send regular database activity with full data
-          return {
-            activity: activity._id || activity,
-            activity_data: {
-              _id: activity._id,
-              title: activity.title,
-              description: activity.description,
-              category: activity.category,
-              subcategory: activity.subcategory,
-              durationMin: activity.durationMin,
-              icon: activity.icon,
-              color: activity.color,
-              image: activity.image,
-              images: activity.images || [],
-              rating: activity.rating,
-              location: activity.location,
-              address: activity.address,
-              coordinates: activity.coordinates,
-              opening_hours: activity.opening_hours,
-              types: activity.types,
-              source: activity.source,
-              external_id: activity.external_id,
-              release_date: activity.release_date,
-              poster_path: activity.poster_path,
-              backdrop_path: activity.backdrop_path,
-              ...activity, // Spread all other fields to ensure nothing is missed
-            },
-            order: idx,
-            startTime: item.startTime || "09:00",
-            endTime:
-              item.endTime ||
-              calculateEndTime(
-                item.startTime || "09:00",
-                activity?.durationMin || 60
-              ),
-            vibe: item.vibe || "",
-            notes: item.notes || "",
-            completed: item.completed || false,
-            rating: item.rating || null,
-            review: item.review || "",
-          };
-        }
-      });
+      // Convert local plan to backend format using utility
+      const backendPlan = convertLocalPlanToBackend(plan);
 
       const weekendPlanData = {
         weekend_date: selectedDate,
         status: currentWeekendPlan?.status || "planning",
-        saturday_activities: saturdayActivities,
-        sunday_activities: sundayActivities,
+        saturday_activities: backendPlan.saturday_activities,
+        sunday_activities: backendPlan.sunday_activities,
         tags: selectedTheme ? [selectedTheme] : [],
       };
 
@@ -571,47 +280,9 @@ export default function Home() {
     // If activity has day, startTime, and endTime, use them
     const day = activity.day || "sunday";
     const startTime = activity.startTime || "09:00";
-    const endTime =
-      activity.endTime || calculateEndTime(startTime, activity.durationMin);
 
-    // Check if this is an external activity (has source field)
-    const isExternalActivity = activity.source || activity.external_id;
-
-    const newItem = {
-      _id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      activity: isExternalActivity
-        ? activity
-        : {
-            _id: activity._id,
-            title: activity.title,
-            description: activity.description,
-            category: activity.category,
-            subcategory: activity.subcategory,
-            durationMin: activity.durationMin,
-            icon: activity.icon,
-            color: activity.color,
-            image: activity.image,
-            images: activity.images || [],
-            rating: activity.rating,
-            location: activity.location,
-            address: activity.address,
-            coordinates: activity.coordinates,
-            opening_hours: activity.opening_hours,
-            types: activity.types,
-            source: activity.source,
-            external_id: activity.external_id,
-            release_date: activity.release_date,
-            poster_path: activity.poster_path,
-            backdrop_path: activity.backdrop_path,
-            ...activity, // Spread all other fields to ensure nothing is missed
-          },
-      day,
-      order: localPlan[day].length,
-      startTime,
-      endTime,
-      vibe: activity.vibe || "",
-      notes: activity.notes || "",
-    };
+    // Create new plan item using utility function
+    const newItem = createPlanItem(activity, day, startTime);
 
     setLocalPlan((prev) => ({
       ...prev,
@@ -631,54 +302,6 @@ export default function Home() {
       // Trigger a re-fetch of activities
       window.location.reload(); // Simple approach - in production you'd want to use SWR's mutate
     }
-  };
-
-  const calculateEndTime = (startTime, duration) => {
-    const [hours, minutes] = startTime.split(":").map(Number);
-    const totalMinutes = hours * 60 + minutes + duration;
-    const endHours = Math.floor(totalMinutes / 60);
-    const endMins = totalMinutes % 60;
-    return `${endHours.toString().padStart(2, "0")}:${endMins
-      .toString()
-      .padStart(2, "0")}`;
-  };
-
-  // ------------------- ADD: helper to check conflicts -------------------
-  const timeToMinutes = (timeStr) => {
-    if (!timeStr) return null;
-    const [h, m] = timeStr.split(":").map(Number);
-    return h * 60 + m;
-  };
-
-  const checkPlanConflicts = (planToCheck) => {
-    const conflicts = [];
-    ["saturday", "sunday"].forEach((day) => {
-      const items = planToCheck[day] || [];
-      for (let i = 0; i < items.length; i++) {
-        const a = items[i];
-        if (!a.startTime || !a.endTime) continue;
-        const aStart = timeToMinutes(a.startTime);
-        const aEnd = timeToMinutes(a.endTime);
-        for (let j = i + 1; j < items.length; j++) {
-          const b = items[j];
-          if (!b.startTime || !b.endTime) continue;
-          const bStart = timeToMinutes(b.startTime);
-          const bEnd = timeToMinutes(b.endTime);
-          if (aStart < bEnd && bStart < aEnd) {
-            conflicts.push({
-              day,
-              aTitle:
-                a.activity?.title || a.external_activity?.title || "Item A",
-              bTitle:
-                b.activity?.title || b.external_activity?.title || "Item B",
-              aTime: `${a.startTime} - ${a.endTime}`,
-              bTime: `${b.startTime} - ${b.endTime}`,
-            });
-          }
-        }
-      }
-    });
-    return conflicts;
   };
 
   // Check time conflict for a specific activity and day
@@ -703,10 +326,7 @@ export default function Home() {
         if (newStart < itemEnd && newEnd > itemStart) {
           return {
             hasConflict: true,
-            conflictingActivity:
-              item.activity?.title ||
-              item.external_activity?.title ||
-              "Unknown Activity",
+            conflictingActivity: item.activity?.title || "Unknown Activity",
             conflictingTime: `${item.startTime} - ${item.endTime}`,
           };
         }
@@ -714,7 +334,6 @@ export default function Home() {
     }
     return { hasConflict: false };
   };
-  // ------------------- END helper -------------------
 
   const handleThemeChange = (themeId) => {
     setSelectedTheme(themeId);
@@ -790,44 +409,8 @@ export default function Home() {
         return; // Prevent the drop
       }
 
-      const isExternal = activity.source || activity.external_id;
-      const activityPayload = isExternal
-        ? activity
-        : {
-            _id: activity._id,
-            title: activity.title,
-            description: activity.description,
-            category: activity.category,
-            subcategory: activity.subcategory,
-            durationMin: activity.durationMin,
-            icon: activity.icon,
-            color: activity.color,
-            image: activity.image,
-            images: activity.images || [],
-            rating: activity.rating,
-            location: activity.location,
-            address: activity.address,
-            coordinates: activity.coordinates,
-            opening_hours: activity.opening_hours,
-            types: activity.types,
-            source: activity.source,
-            external_id: activity.external_id,
-            release_date: activity.release_date,
-            poster_path: activity.poster_path,
-            backdrop_path: activity.backdrop_path,
-            ...activity,
-          };
-
-      const newItem = {
-        _id: `temp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-        activity: activityPayload,
-        day,
-        order: localPlan[day]?.length || 0,
-        startTime,
-        endTime,
-        vibe: "",
-        notes: "",
-      };
+      // Create new plan item using utility function
+      const newItem = createPlanItem(activity, day, startTime);
 
       setLocalPlan((prev) => ({
         ...prev,

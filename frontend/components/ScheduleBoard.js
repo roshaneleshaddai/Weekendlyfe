@@ -38,22 +38,19 @@ const PlanItemCard = ({
       <div className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center space-x-3">
-            <span className="text-2xl">
-              {item.activity?.icon || item.external_activity?.icon}
-            </span>
+            <span className="text-2xl">{item.activity?.icon}</span>
             <div>
               <h4 className="font-semibold text-zen-black">
-                {item.activity?.title || item.external_activity?.title}
+                {item.activity?.title}
               </h4>
               <p className="text-sm text-zen-black">
-                {item.activity?.category || item.external_activity?.category}
-                {item.external_activity?.source && (
-                  <span className="ml-2 text-xs bg-zen-lime text-zen-black px-1 py-0.5 rounded">
-                    {item.external_activity.source === "tmdb"
-                      ? "Movie"
-                      : "Place"}
-                  </span>
-                )}
+                {item.activity?.category}
+                {item.activity?.source &&
+                  item.activity.source !== "internal" && (
+                    <span className="ml-2 text-xs bg-zen-lime text-zen-black px-1 py-0.5 rounded">
+                      {item.activity.source === "tmdb" ? "Movie" : "Place"}
+                    </span>
+                  )}
               </p>
             </div>
           </div>
@@ -79,10 +76,7 @@ const PlanItemCard = ({
               - {item.endTime || "10:00"}
             </span>
             <span className="text-xs bg-zen-light-gray text-zen-black px-2 py-1 rounded">
-              {item.activity?.durationMin ||
-                item.external_activity?.durationMin ||
-                60}
-              m
+              {item.activity?.durationMin || 60}m
             </span>
           </div>
 
@@ -106,14 +100,11 @@ const PlanItemCard = ({
           <div
             className="w-6 h-6 rounded-full border-2"
             style={{
-              backgroundColor:
-                item.activity?.color ||
-                item.external_activity?.color ||
-                "#FDE68A",
+              backgroundColor: item.activity?.color || "#FDE68A",
             }}
           ></div>
           <div className="text-xs text-zen-black">
-            {item.activity?.description || item.external_activity?.description}
+            {item.activity?.description}
           </div>
         </div>
       </div>

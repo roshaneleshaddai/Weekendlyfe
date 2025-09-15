@@ -31,6 +31,7 @@ const PlaceCard = ({ place, onAdd, isAuthenticated }) => {
       external_id: place.external_id,
       opening_hours: place.opening_hours,
       types: place.types,
+      price_level: place.price_level,
       day: selectedDay,
       startTime: startTime,
       endTime: calculateEndTime(startTime, place.durationMin),

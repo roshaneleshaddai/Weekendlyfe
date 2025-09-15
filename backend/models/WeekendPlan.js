@@ -26,45 +26,58 @@ const WeekendPlanSchema = new mongoose.Schema({
     default: "draft",
   },
 
-  // Activities for Saturday and Sunday
+  // Activities for Saturday and Sunday - Consistent structure
   saturday_activities: [
     {
-      activity: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Activity",
-        required: false, // Made optional to allow external activities
-      },
-      // External activity data (when activity is not a database reference)
-      external_activity: {
-        id: String,
-        title: String,
+      // Unified activity data structure
+      activity_data: {
+        // Database reference (for internal activities) - can be ObjectId or string for temp IDs
+        _id: {
+          type: mongoose.Schema.Types.Mixed,
+          ref: "Activity",
+          required: false,
+        },
+        // Activity content (always present)
+        title: { type: String, required: true },
         description: String,
         category: String,
         subcategory: String,
-        durationMin: Number,
+        durationMin: { type: Number, default: 60 },
         icon: String,
-        color: String,
+        color: { type: String, default: "#FDE68A" },
         images: [String],
         rating: Number,
-        source: String, // 'tmdb', 'google_places', etc.
+
+        // Source identification
+        source: String, // 'internal', 'tmdb', 'google_places', etc.
         external_id: String,
+
+        // Location data (for places)
         location: String,
         address: String,
         coordinates: {
           lat: Number,
           lng: Number,
         },
-        release_date: String, // For movies
-        poster_path: String, // For movies
-        backdrop_path: String, // For movies
-        opening_hours: Boolean, // For places
-        types: [String], // For places
+
+        // Movie-specific data
+        release_date: String,
+        poster_path: String,
+        backdrop_path: String,
+
+        // Place-specific data
+        opening_hours: Boolean,
+        types: [String],
+        price_level: Number,
       },
+
+      // Plan-specific data
       order: { type: Number, default: 0 },
-      startTime: String,
-      endTime: String,
-      vibe: String,
-      notes: String,
+      startTime: { type: String, default: "09:00" },
+      endTime: { type: String, default: "10:00" },
+      vibe: { type: String, default: "" },
+      notes: { type: String, default: "" },
+      day: { type: String, default: "saturday" },
 
       // Completion tracking
       completed: { type: Boolean, default: false },
@@ -77,42 +90,55 @@ const WeekendPlanSchema = new mongoose.Schema({
 
   sunday_activities: [
     {
-      activity: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Activity",
-        required: false, // Made optional to allow external activities
-      },
-      // External activity data (when activity is not a database reference)
-      external_activity: {
-        id: String,
-        title: String,
+      // Unified activity data structure
+      activity_data: {
+        // Database reference (for internal activities) - can be ObjectId or string for temp IDs
+        _id: {
+          type: mongoose.Schema.Types.Mixed,
+          ref: "Activity",
+          required: false,
+        },
+        // Activity content (always present)
+        title: { type: String, required: true },
         description: String,
         category: String,
         subcategory: String,
-        durationMin: Number,
+        durationMin: { type: Number, default: 60 },
         icon: String,
-        color: String,
+        color: { type: String, default: "#FDE68A" },
         images: [String],
         rating: Number,
-        source: String, // 'tmdb', 'google_places', etc.
+
+        // Source identification
+        source: String, // 'internal', 'tmdb', 'google_places', etc.
         external_id: String,
+
+        // Location data (for places)
         location: String,
         address: String,
         coordinates: {
           lat: Number,
           lng: Number,
         },
-        release_date: String, // For movies
-        poster_path: String, // For movies
-        backdrop_path: String, // For movies
-        opening_hours: Boolean, // For places
-        types: [String], // For places
+
+        // Movie-specific data
+        release_date: String,
+        poster_path: String,
+        backdrop_path: String,
+
+        // Place-specific data
+        opening_hours: Boolean,
+        types: [String],
+        price_level: Number,
       },
+
+      // Plan-specific data
       order: { type: Number, default: 0 },
-      startTime: String,
-      endTime: String,
-      vibe: String,
-      notes: String,
+      startTime: { type: String, default: "09:00" },
+      endTime: { type: String, default: "10:00" },
+      vibe: { type: String, default: "" },
+      notes: { type: String, default: "" },
+      day: { type: String, default: "sunday" },
 
       // Completion tracking
       completed: { type: Boolean, default: false },
@@ -165,7 +191,7 @@ WeekendPlanSchema.methods.getCompletionPercentage = function () {
 // Method to calculate total duration
 WeekendPlanSchema.methods.getTotalDuration = function () {
   return this.all_activities.reduce((total, planActivity) => {
-    return total + (planActivity.activity?.durationMin || 0);
+    return total + (planActivity.activity_data?.durationMin || 0);
   }, 0);
 };
 

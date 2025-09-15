@@ -2,6 +2,14 @@
 const WeekendPlan = require("../models/WeekendPlan");
 const User = require("../models/User");
 const Activity = require("../models/Activity");
+const {
+  convertLocalPlanToBackend,
+  convertBackendPlanToLocal,
+  calculateEndTime,
+  timeToMinutes,
+  checkDayConflicts,
+  normalizeActivityData,
+} = require("../utils/weekendPlanUtils");
 
 // Get current weekend plan
 const getCurrentWeekendPlan = async (req, res) => {
@@ -21,8 +29,8 @@ const getCurrentWeekendPlan = async (req, res) => {
       "weekend_date_range.end_date": { $gte: currentSaturday },
       status: { $in: ["draft", "planning"] },
     })
-      .populate("saturday_activities.activity")
-      .populate("sunday_activities.activity")
+      .populate("saturday_activities.activity_data._id")
+      .populate("sunday_activities.activity_data._id")
       .lean();
 
     // If no plan exists for current weekend, create a draft
@@ -44,8 +52,8 @@ const getCurrentWeekendPlan = async (req, res) => {
 
         // Populate the new plan
         plan = await WeekendPlan.findById(newPlan._id)
-          .populate("saturday_activities.activity")
-          .populate("sunday_activities.activity")
+          .populate("saturday_activities.activity_data._id")
+          .populate("sunday_activities.activity_data._id")
           .lean();
       } catch (error) {
         // If duplicate key error, try to find the existing plan
@@ -56,8 +64,8 @@ const getCurrentWeekendPlan = async (req, res) => {
             "weekend_date_range.end_date": { $gte: currentSaturday },
             status: { $in: ["draft", "planning"] },
           })
-            .populate("saturday_activities.activity")
-            .populate("sunday_activities.activity")
+            .populate("saturday_activities.activity_data._id")
+            .populate("sunday_activities.activity_data._id")
             .lean();
         } else {
           throw error;
@@ -101,8 +109,8 @@ const getWeekendPlanByDate = async (req, res) => {
       "weekend_date_range.start_date": { $lte: sunday },
       "weekend_date_range.end_date": { $gte: saturday },
     })
-      .populate("saturday_activities.activity")
-      .populate("sunday_activities.activity")
+      .populate("saturday_activities.activity_data._id")
+      .populate("sunday_activities.activity_data._id")
       .lean();
 
     // If no plan exists for this weekend, create a draft
@@ -124,8 +132,8 @@ const getWeekendPlanByDate = async (req, res) => {
 
         // Populate the new plan
         plan = await WeekendPlan.findById(newPlan._id)
-          .populate("saturday_activities.activity")
-          .populate("sunday_activities.activity")
+          .populate("saturday_activities.activity_data._id")
+          .populate("sunday_activities.activity_data._id")
           .lean();
       } catch (error) {
         // If duplicate key error, try to find the existing plan
@@ -135,8 +143,8 @@ const getWeekendPlanByDate = async (req, res) => {
             "weekend_date_range.start_date": { $lte: sunday },
             "weekend_date_range.end_date": { $gte: saturday },
           })
-            .populate("saturday_activities.activity")
-            .populate("sunday_activities.activity")
+            .populate("saturday_activities.activity_data._id")
+            .populate("sunday_activities.activity_data._id")
             .lean();
         } else {
           throw error;
@@ -165,8 +173,8 @@ const getUserHistory = async (req, res) => {
     }
 
     const plans = await WeekendPlan.find(query)
-      .populate("saturday_activities.activity")
-      .populate("sunday_activities.activity")
+      .populate("saturday_activities.activity_data._id")
+      .populate("sunday_activities.activity_data._id")
       .sort({ weekend_date: -1 })
       .lean();
 
@@ -222,6 +230,24 @@ const createOrUpdateWeekendPlan = async (req, res) => {
     sunday.setDate(saturday.getDate() + 1);
     sunday.setHours(0, 0, 0, 0);
 
+    // Check for time conflicts before saving
+    const saturdayConflicts = checkDayConflicts(
+      saturday_activities || [],
+      "saturday"
+    );
+    const sundayConflicts = checkDayConflicts(
+      sunday_activities || [],
+      "sunday"
+    );
+    const allConflicts = [...saturdayConflicts, ...sundayConflicts];
+
+    if (allConflicts.length > 0) {
+      return res.status(400).json({
+        error: "Time conflicts detected",
+        conflicts: allConflicts,
+      });
+    }
+
     // Find existing plan for this weekend range
     let plan = await WeekendPlan.findOne({
       user: req.userId,
@@ -241,8 +267,8 @@ const createOrUpdateWeekendPlan = async (req, res) => {
 
       // Populate the updated plan
       plan = await WeekendPlan.findById(plan._id)
-        .populate("saturday_activities.activity")
-        .populate("sunday_activities.activity")
+        .populate("saturday_activities.activity_data._id")
+        .populate("sunday_activities.activity_data._id")
         .lean();
     } else {
       // Create new plan
@@ -265,8 +291,8 @@ const createOrUpdateWeekendPlan = async (req, res) => {
 
         // Populate the new plan
         plan = await WeekendPlan.findById(newPlan._id)
-          .populate("saturday_activities.activity")
-          .populate("sunday_activities.activity")
+          .populate("saturday_activities.activity_data._id")
+          .populate("sunday_activities.activity_data._id")
           .lean();
       } catch (error) {
         // If duplicate key error, try to find and update the existing plan
@@ -289,8 +315,8 @@ const createOrUpdateWeekendPlan = async (req, res) => {
 
             // Populate the updated plan
             plan = await WeekendPlan.findById(plan._id)
-              .populate("saturday_activities.activity")
-              .populate("sunday_activities.activity")
+              .populate("saturday_activities.activity_data._id")
+              .populate("sunday_activities.activity_data._id")
               .lean();
           } else {
             throw error;
@@ -336,8 +362,8 @@ const getUserWeekendPlans = async (req, res) => {
     if (status) query.status = status;
 
     const plans = await WeekendPlan.find(query)
-      .populate("saturday_activities.activity")
-      .populate("sunday_activities.activity")
+      .populate("saturday_activities.activity_data._id")
+      .populate("sunday_activities.activity_data._id")
       .sort({ weekend_date: -1 })
       .skip(skip)
       .limit(parseInt(limit))
@@ -368,8 +394,8 @@ const getWeekendPlan = async (req, res) => {
       _id: req.params.id,
       user: req.userId,
     })
-      .populate("saturday_activities.activity")
-      .populate("sunday_activities.activity")
+      .populate("saturday_activities.activity_data._id")
+      .populate("sunday_activities.activity_data._id")
       .lean();
 
     if (!plan) {
@@ -407,8 +433,8 @@ const updatePlanStatus = async (req, res) => {
 
     // Populate the updated plan
     const updatedPlan = await WeekendPlan.findById(plan._id)
-      .populate("saturday_activities.activity")
-      .populate("sunday_activities.activity")
+      .populate("saturday_activities.activity_data._id")
+      .populate("sunday_activities.activity_data._id")
       .lean();
 
     res.json(updatedPlan);
@@ -446,8 +472,8 @@ const completeWeekendPlan = async (req, res) => {
 
     // Populate the completed plan
     const completedPlan = await WeekendPlan.findById(plan._id)
-      .populate("saturday_activities.activity")
-      .populate("sunday_activities.activity")
+      .populate("saturday_activities.activity_data._id")
+      .populate("sunday_activities.activity_data._id")
       .lean();
 
     res.json(completedPlan);
